@@ -9,11 +9,17 @@ function App() {
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [notification, setNotification] = useState('');
   const [language, setLanguage] = useState('en');
   const [search, setSearch] = useState('');
+  const [phone, setPhone] = useState('');
+  const [customerOrders, setCustomerOrders] = useState([]);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
   const [customer, setCustomer] = useState({
     name: '', phone: '', address: '', area: '', landmark: '', payment_method: 'COD'
@@ -30,7 +36,10 @@ function App() {
       address: 'Delivery Address', area: 'Area', landmark: 'Landmark',
       payment: 'Payment Method', cod: 'Cash on Delivery', upi: 'UPI',
       orderId: 'Order ID', status: 'Status', continue: 'Continue Shopping',
-      marketPrice: 'Market Price', youSave: 'You Save', discount: 'Discount'
+      marketPrice: 'Market Price', youSave: 'You Save', discount: 'Discount',
+      myOrders: 'My Orders', dashboard: 'Dashboard', coupon: 'Coupon Code',
+      apply: 'Apply', remove: 'Remove', orderHistory: 'Order History',
+      noOrders: 'No orders yet', enterPhone: 'Enter phone to view orders'
     },
     bn: {
       title: 'তাজা সবজি', subtitle: 'খামার থেকে তাজা সবজি আপনার দোরগোড়ায়',
@@ -42,7 +51,10 @@ function App() {
       address: 'ডেলিভারি ঠিকানা', area: 'এলাকা', landmark: 'ল্যান্ডমার্ক',
       payment: 'পেমেন্ট পদ্ধতি', cod: 'ডেলিভারিতে পেমেন্ট', upi: 'ইউপিআই',
       orderId: 'অর্ডার আইডি', status: 'স্ট্যাটাস', continue: 'শপিং চালিয়ে যান',
-      marketPrice: 'বাজার দর', youSave: 'সংরক্ষণ', discount: 'ছাড়'
+      marketPrice: 'বাজার দর', youSave: 'সংরক্ষণ', discount: 'ছাড়',
+      myOrders: 'আমার অর্ডার', dashboard: 'ড্যাশবোর্ড', coupon: 'কুপন কোড',
+      apply: 'প্রয়োগ', remove: 'সরান', orderHistory: 'অর্ডার ইতিহাস',
+      noOrders: 'কোনো অর্ডার নেই', enterPhone: 'অর্ডার দেখতে ফোন দিন'
     },
     hi: {
       title: 'ताज़ी सब्जियाँ', subtitle: 'खेत से ताज़ी सब्जियाँ आपके दरवाजे पर',
@@ -54,18 +66,31 @@ function App() {
       address: 'डिलीवरी पता', area: 'क्षेत्र', landmark: 'लैंडमार्क',
       payment: 'भुगतान विधि', cod: 'डिलीवरी पर भुगतान', upi: 'यूपीआई',
       orderId: 'ऑर्डर आईडी', status: 'स्थिति', continue: 'खरीदारी जारी रखें',
-      marketPrice: 'बाजार मूल्य', youSave: 'बचत', discount: 'छूट'
+      marketPrice: 'बाजार मूल्य', youSave: 'बचत', discount: 'छूट',
+      myOrders: 'मेरे ऑर्डर', dashboard: 'डैशबोर्ड', coupon: 'कूपन कोड',
+      apply: 'लागू करें', remove: 'हटाएं', orderHistory: 'ऑर्डर इतिहास',
+      noOrders: 'कोई ऑर्डर नहीं', enterPhone: 'ऑर्डर देखने के लिए फोन डालें'
     }
   };
 
   const t = translations[language];
 
+  // লোড প্রোডাক্ট
   useEffect(() => {
     fetch(`${API_URL}/api/products/active`)
       .then(res => res.json())
       .then(data => { setProducts(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  // কাস্টমার অর্ডার লোড
+  const loadCustomerOrders = () => {
+    if (!phone) return;
+    fetch(`${API_URL}/api/orders/phone/${phone}`)
+      .then(res => res.json())
+      .then(data => setCustomerOrders(data))
+      .catch(() => setCustomerOrders([]));
+  };
 
   const getProductName = (p) => {
     if (language === 'bn') return p.name_bn || p.name;
@@ -100,8 +125,42 @@ function App() {
   const removeItem = (id) => setCart(prev => prev.filter(item => item.id !== id));
   const getSubtotal = () => cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const getDeliveryCharge = () => { const s = getSubtotal(); return s === 0 ? 0 : s >= 100 ? 0 : 20; };
-  const getTotal = () => getSubtotal() + getDeliveryCharge();
+  const getTotal = () => getSubtotal() + getDeliveryCharge() - couponDiscount;
   const clearCart = () => setCart([]);
+
+  // কুপন ভ্যালিডেট
+  const applyCoupon = async () => {
+    if (!couponCode) {
+      alert('Please enter a coupon code');
+      return;
+    }
+    try {
+      const response = await fetch(`${API_URL}/api/coupons/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: couponCode, subtotal: getSubtotal() })
+      });
+      const data = await response.json();
+      if (data.valid) {
+        setCouponDiscount(data.discount);
+        setAppliedCoupon(data);
+        setNotification(`✅ ${data.message}`);
+        setTimeout(() => setNotification(''), 3000);
+      } else {
+        alert(data.message);
+        setCouponDiscount(0);
+        setAppliedCoupon(null);
+      }
+    } catch (error) {
+      alert('Error validating coupon');
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponDiscount(0);
+    setAppliedCoupon(null);
+    setCouponCode('');
+  };
 
   const placeOrder = async () => {
     if (!customer.name || !customer.phone || !customer.address) {
@@ -118,7 +177,11 @@ function App() {
       area: customer.area, landmark: customer.landmark,
       payment_method: customer.payment_method,
       items: cart.map(item => ({ name: item.name, quantity: item.quantity, price: item.price, unit: item.unit })),
-      subtotal: getSubtotal(), delivery: getDeliveryCharge(), total: getTotal()
+      subtotal: getSubtotal(),
+      discount: couponDiscount,
+      delivery: getDeliveryCharge(),
+      total: getTotal(),
+      coupon_code: appliedCoupon ? appliedCoupon.code : ''
     };
     try {
       const response = await fetch(`${API_URL}/api/order`, {
@@ -133,6 +196,9 @@ function App() {
         setCustomer({ name: '', phone: '', address: '', area: '', landmark: '', payment_method: 'COD' });
         setShowCheckout(false);
         setShowCart(false);
+        setCouponDiscount(0);
+        setAppliedCoupon(null);
+        setCouponCode('');
       }
     } catch (error) {
       alert('Error placing order. Please try again.');
@@ -149,6 +215,7 @@ function App() {
     </div>
   );
 
+  // ===== অর্ডার সফল =====
   if (orderPlaced) {
     return (
       <div className="order-success">
@@ -165,6 +232,53 @@ function App() {
     );
   }
 
+  // ===== কাস্টমার ড্যাশবোর্ড =====
+  if (showDashboard) {
+    return (
+      <div className="App">
+        <header className="app-header">
+          <button className="back-btn" onClick={() => { setShowDashboard(false); setCustomerOrders([]); }}>←</button>
+          <h1>📊 {t.dashboard}</h1>
+        </header>
+        <main className="container">
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="tel"
+                placeholder={t.enterPhone}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                style={{ flex: 1, padding: '10px 14px', border: '2px solid #e8e8e8', borderRadius: '12px', fontSize: '14px' }}
+              />
+              <button className="btn-primary" onClick={loadCustomerOrders} style={{ width: 'auto', padding: '10px 20px' }}>
+                {t.track}
+              </button>
+            </div>
+          </div>
+          <h3 style={{ marginBottom: '12px', color: '#1a472a' }}>{t.orderHistory}</h3>
+          {customerOrders.length === 0 ? (
+            <p style={{ color: '#888', textAlign: 'center', padding: '20px' }}>{t.noOrders}</p>
+          ) : (
+            customerOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(order => (
+              <div key={order.order_id} style={{ background: 'white', padding: '14px', borderRadius: '12px', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '700', color: '#2E7D32' }}>#{order.order_id}</span>
+                  <span style={{ padding: '2px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', background: order.status === 'DELIVERED' ? '#E8F5E9' : '#FFF3E0', color: order.status === 'DELIVERED' ? '#1B5E20' : '#E65100' }}>{order.status}</span>
+                </div>
+                <div style={{ fontSize: '13px', color: '#555', marginTop: '4px' }}>
+                  {order.items.map(i => `${i.name} × ${i.quantity}`).join(' | ')}
+                </div>
+                <div style={{ fontWeight: '700', color: '#2E7D32', marginTop: '4px' }}>₹{order.total}</div>
+                <div style={{ fontSize: '11px', color: '#888' }}>{order.created_at}</div>
+              </div>
+            ))
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // ===== কার্ট =====
   if (showCart) {
     return (
       <div className="App">
@@ -185,7 +299,7 @@ function App() {
               <div className="cart-items">
                 {cart.map(item => (
                   <div className="cart-item" key={item.id}>
-                    <img src={item.image} alt={item.name} className="cart-item-image" />
+                    <img src={item.image} alt={item.name} className="cart-item-image" onError={(e) => e.target.src = 'https://via.placeholder.com/50'} />
                     <div className="cart-item-info">
                       <h4>{getProductName(item)}</h4>
                       <p className="cart-item-price">₹{item.price} / {item.unit}</p>
@@ -202,8 +316,30 @@ function App() {
                   </div>
                 ))}
               </div>
+
+              {/* কুপন */}
+              <div style={{ background: '#f8faf8', padding: '12px 14px', borderRadius: '12px', margin: '8px 0' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder={t.coupon}
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    style={{ flex: 1, padding: '8px 12px', border: '2px solid #e8e8e8', borderRadius: '10px', fontSize: '13px' }}
+                  />
+                  <button className="btn-primary" onClick={applyCoupon} style={{ width: 'auto', padding: '8px 16px', fontSize: '13px' }}>{t.apply}</button>
+                </div>
+                {appliedCoupon && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', color: '#2E7D32' }}>
+                    <span>✅ {appliedCoupon.code} - {t.discount}: ₹{couponDiscount}</span>
+                    <button onClick={removeCoupon} style={{ background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontWeight: '600' }}>{t.remove}</button>
+                  </div>
+                )}
+              </div>
+
               <div className="cart-summary">
                 <div className="summary-row"><span>{t.subtotal}</span><span>₹{getSubtotal()}</span></div>
+                {couponDiscount > 0 && <div className="summary-row" style={{ color: '#e74c3c' }}><span>{t.discount}</span><span>-₹{couponDiscount}</span></div>}
                 <div className="summary-row"><span>{t.delivery}</span><span>{getDeliveryCharge() === 0 ? 'FREE' : `₹${getDeliveryCharge()}`}</span></div>
                 <div className="summary-row total"><span>{t.total}</span><span>₹{getTotal()}</span></div>
               </div>
@@ -211,6 +347,8 @@ function App() {
             </>
           )}
         </main>
+
+        {/* চেকআউট মডাল */}
         {showCheckout && (
           <div className="checkout-modal">
             <div className="checkout-content">
@@ -238,6 +376,7 @@ function App() {
                 <div className="order-summary-mini">
                   <h4>Order Summary</h4>
                   <div className="summary-mini-row"><span>Items ({cart.length})</span><span>₹{getSubtotal()}</span></div>
+                  {couponDiscount > 0 && <div className="summary-mini-row" style={{ color: '#e74c3c' }}><span>Discount</span><span>-₹{couponDiscount}</span></div>}
                   <div className="summary-mini-row"><span>{t.delivery}</span><span>{getDeliveryCharge() === 0 ? 'FREE' : `₹${getDeliveryCharge()}`}</span></div>
                   <div className="summary-mini-row total-mini"><span>{t.total}</span><span>₹{getTotal()}</span></div>
                 </div>
@@ -252,7 +391,7 @@ function App() {
     );
   }
 
-  // Main Shop
+  // ===== মেইন শপ =====
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     (p.name_bn && p.name_bn.includes(search)) ||
@@ -278,6 +417,9 @@ function App() {
           <LanguageSelector />
           <button className="cart-btn" onClick={() => setShowCart(true)}>
             🛒 <span className="cart-count">{cart.length}</span>
+          </button>
+          <button className="cart-btn" onClick={() => setShowDashboard(true)} style={{ background: 'rgba(255,255,255,0.1)' }}>
+            📊
           </button>
         </div>
       </header>
@@ -317,11 +459,14 @@ function App() {
               const mrp = product.mrp || product.price;
               const price = product.price;
               const savings = mrp - price;
+              const imageUrl = product.image && product.image.startsWith('/uploads') 
+                ? `${API_URL}${product.image}` 
+                : product.image || 'https://via.placeholder.com/300';
               
               return (
                 <div className="product-card" key={product.id}>
                   <div className="product-image-container">
-                    <img src={product.image} alt={product.name} className="product-image" />
+                    <img src={imageUrl} alt={product.name} className="product-image" onError={(e) => e.target.src = 'https://via.placeholder.com/300'} />
                     {discountPercent > 0 && (
                       <span className="discount-badge">{discountPercent}% OFF</span>
                     )}
@@ -357,12 +502,6 @@ function App() {
             })}
           </div>
         )}
-
-        <div className="track-section">
-          <button className="btn-track" onClick={() => {}}>
-            📦 {t.track}
-          </button>
-        </div>
       </main>
     </div>
   );
