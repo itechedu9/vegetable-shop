@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: vegetable_shop_db
+    environment:
+      POSTGRES_USER: veggie_user
+      POSTGRES_PASSWORD: veggie_password
+      POSTGRES_DB: vegetable_shop
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Backend API
+  backend:
+    build: ./backend
+    container_name: vegetable_shop_backend
+    environment:
+      DATABASE_URL: postgresql://veggie_user:veggie_password@postgres:5432/vegetable_shop
+      FLASK_ENV: development
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

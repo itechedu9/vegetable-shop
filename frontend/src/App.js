@@ -1,0 +1,574 @@
+import React, { useState, useEffect } from 'react';
+import './App.css';
+
+function App() {
+  const [products, setProducts] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [showCart, setShowCart] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [orderPlaced, setOrderPlaced] = useState(false);
+  const [orderId, setOrderId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [notification, setNotification] = useState('');
+  const [language, setLanguage] = useState('en'); // en, bn, hi
+  const [search, setSearch] = useState('');
+  const [trackOrder, setTrackOrder] = useState(false);
+  const [trackData, setTrackData] = useState(null);
+  const [trackPhone, setTrackPhone] = useState('');
+  const [trackOrderId, setTrackOrderId] = useState('');
+
+  const [customer, setCustomer] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    area: '',
+    landmark: '',
+    payment_method: 'COD'
+  });
+
+  // Translations
+  const translations = {
+    en: {
+      title: 'Fresh Veggies',
+      subtitle: 'Farm fresh vegetables delivered to your door',
+      search: 'Search vegetables...',
+      addToCart: 'Add to Cart',
+      cart: 'Cart',
+      emptyCart: 'Your cart is empty',
+      checkout: 'Proceed to Checkout',
+      placeOrder: 'Place Order',
+      orderPlaced: 'Order Placed Successfully!',
+      track: 'Track Order',
+      trackOrder: 'Track Your Order',
+      enterOrderId: 'Enter Order ID',
+      enterPhone: 'Enter Phone Number',
+      trackBtn: 'Track',
+      total: 'Total',
+      delivery: 'Delivery',
+      subtotal: 'Subtotal',
+      name: 'Full Name',
+      phone: 'Phone Number',
+      address: 'Delivery Address',
+      area: 'Area',
+      landmark: 'Landmark',
+      payment: 'Payment Method',
+      cod: 'Cash on Delivery',
+      upi: 'UPI',
+      orderId: 'Order ID',
+      status: 'Status',
+      continue: 'Continue Shopping'
+    },
+    bn: {
+      title: 'তাজা সবজি',
+      subtitle: 'খামার থেকে তাজা সবজি আপনার দোরগোড়ায়',
+      search: 'সবজি খুঁজুন...',
+      addToCart: 'কার্টে যোগ করুন',
+      cart: 'কার্ট',
+      emptyCart: 'আপনার কার্ট খালি',
+      checkout: 'চেকআউট করুন',
+      placeOrder: 'অর্ডার করুন',
+      orderPlaced: 'অর্ডার সফল হয়েছে!',
+      track: 'অর্ডার ট্র্যাক',
+      trackOrder: 'আপনার অর্ডার ট্র্যাক করুন',
+      enterOrderId: 'অর্ডার আইডি দিন',
+      enterPhone: 'ফোন নম্বর দিন',
+      trackBtn: 'ট্র্যাক',
+      total: 'মোট',
+      delivery: 'ডেলিভারি',
+      subtotal: 'সাবটোটাল',
+      name: 'পূর্ণ নাম',
+      phone: 'ফোন নম্বর',
+      address: 'ডেলিভারি ঠিকানা',
+      area: 'এলাকা',
+      landmark: 'ল্যান্ডমার্ক',
+      payment: 'পেমেন্ট পদ্ধতি',
+      cod: 'ডেলিভারিতে পেমেন্ট',
+      upi: 'ইউপিআই',
+      orderId: 'অর্ডার আইডি',
+      status: 'স্ট্যাটাস',
+      continue: 'শপিং চালিয়ে যান'
+    },
+    hi: {
+      title: 'ताज़ी सब्जियाँ',
+      subtitle: 'खेत से ताज़ी सब्जियाँ आपके दरवाजे पर',
+      search: 'सब्जियाँ खोजें...',
+      addToCart: 'कार्ट में डालें',
+      cart: 'कार्ट',
+      emptyCart: 'आपकी कार्ट खाली है',
+      checkout: 'चेकआउट करें',
+      placeOrder: 'ऑर्डर करें',
+      orderPlaced: 'ऑर्डर सफल हुआ!',
+      track: 'ऑर्डर ट्रैक करें',
+      trackOrder: 'अपना ऑर्डर ट्रैक करें',
+      enterOrderId: 'ऑर्डर आईडी डालें',
+      enterPhone: 'फोन नंबर डालें',
+      trackBtn: 'ट्रैक',
+      total: 'कुल',
+      delivery: 'डिलीवरी',
+      subtotal: 'उप-योग',
+      name: 'पूरा नाम',
+      phone: 'फोन नंबर',
+      address: 'डिलीवरी पता',
+      area: 'क्षेत्र',
+      landmark: 'लैंडमार्क',
+      payment: 'भुगतान विधि',
+      cod: 'डिलीवरी पर भुगतान',
+      upi: 'यूपीआई',
+      orderId: 'ऑर्डर आईडी',
+      status: 'स्थिति',
+      continue: 'खरीदारी जारी रखें'
+    }
+  };
+
+  const t = translations[language];
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/products')
+      .then(res => res.json())
+      .then(data => {
+        setProducts(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  const getProductName = (product) => {
+    if (language === 'bn') return product.name_bn || product.name;
+    if (language === 'hi') return product.name_hi || product.name;
+    return product.name;
+  };
+
+  const addToCart = (product) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prev, { ...product, quantity: 1 }];
+    });
+    setNotification(`${getProductName(product)} ${t.addToCart}!`);
+    setTimeout(() => setNotification(''), 2000);
+  };
+
+  const removeFromCart = (id) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.id === id);
+      if (existing && existing.quantity > 1) {
+        return prev.map(item =>
+          item.id === id
+            ? { ...item, quantity: item.quantity - 1 }
+            : item
+        );
+      }
+      return prev.filter(item => item.id !== id);
+    });
+  };
+
+  const removeItem = (id) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
+
+  const getSubtotal = () => {
+    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  };
+
+  const getDeliveryCharge = () => {
+    const subtotal = getSubtotal();
+    if (subtotal === 0) return 0;
+    return subtotal >= 100 ? 0 : 20;
+  };
+
+  const getTotal = () => {
+    return getSubtotal() + getDeliveryCharge();
+  };
+
+  const clearCart = () => {
+    setCart([]);
+  };
+
+  const placeOrder = async () => {
+    if (!customer.name || !customer.phone || !customer.address) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    if (cart.length === 0) {
+      alert('Your cart is empty');
+      return;
+    }
+
+    setLoading(true);
+
+    const orderData = {
+      name: customer.name,
+      phone: customer.phone,
+      address: customer.address,
+      area: customer.area,
+      landmark: customer.landmark,
+      payment_method: customer.payment_method,
+      items: cart.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price,
+        unit: item.unit
+      })),
+      subtotal: getSubtotal(),
+      delivery: getDeliveryCharge(),
+      total: getTotal()
+    };
+
+    try {
+      const response = await fetch('http://localhost:5000/api/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData)
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setOrderId(data.order.order_id);
+        setOrderPlaced(true);
+        setCart([]);
+        setCustomer({ name: '', phone: '', address: '', area: '', landmark: '', payment_method: 'COD' });
+        setShowCheckout(false);
+        setShowCart(false);
+      }
+    } catch (error) {
+      alert('Error placing order. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const trackOrderStatus = async () => {
+    if (!trackOrderId || !trackPhone) {
+      alert('Please enter both Order ID and Phone Number');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5000/api/orders/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: trackOrderId, phone: trackPhone })
+      });
+      const data = await response.json();
+      if (data.error) {
+        alert('Order not found. Please check your Order ID and Phone Number.');
+        setTrackData(null);
+      } else {
+        setTrackData(data);
+      }
+    } catch (error) {
+      alert('Error tracking order');
+    }
+  };
+
+  // Language selector
+  const LanguageSelector = () => (
+    <div className="language-selector">
+      <button className={`lang-btn ${language === 'en' ? 'active' : ''}`} onClick={() => setLanguage('en')}>🇬🇧</button>
+      <button className={`lang-btn ${language === 'bn' ? 'active' : ''}`} onClick={() => setLanguage('bn')}>🇧🇩</button>
+      <button className={`lang-btn ${language === 'hi' ? 'active' : ''}`} onClick={() => setLanguage('hi')}>🇮🇳</button>
+    </div>
+  );
+
+  // Order Success
+  if (orderPlaced) {
+    const statusSteps = ['NEW', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+    return (
+      <div className="order-success">
+        <div className="success-card">
+          <div className="success-icon">✅</div>
+          <h1>{t.orderPlaced}</h1>
+          <div className="order-id-box">
+            <span className="order-id-label">{t.orderId}</span>
+            <h2 className="order-id">{orderId}</h2>
+          </div>
+          <div className="status-tracking">
+            {statusSteps.map((step, index) => (
+              <div className={`tracking-step ${index === 0 ? 'active' : ''}`} key={step}>
+                {step === 'NEW' && '📦 Order Received'}
+                {step === 'CONFIRMED' && '✅ Confirmed'}
+                {step === 'PREPARING' && '🔪 Preparing'}
+                {step === 'OUT_FOR_DELIVERY' && '🚚 Out for Delivery'}
+                {step === 'DELIVERED' && '🏠 Delivered'}
+              </div>
+            ))}
+          </div>
+          <button className="btn-primary" onClick={() => setOrderPlaced(false)}>
+            {t.continue}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Track Order
+  if (trackOrder) {
+    return (
+      <div className="App">
+        <header className="app-header">
+          <button className="back-btn" onClick={() => { setTrackOrder(false); setTrackData(null); }}>←</button>
+          <h1>{t.trackOrder}</h1>
+        </header>
+        <main className="container">
+          {!trackData ? (
+            <div className="track-form">
+              <input
+                type="text"
+                placeholder={t.enterOrderId}
+                value={trackOrderId}
+                onChange={(e) => setTrackOrderId(e.target.value)}
+                className="track-input"
+              />
+              <input
+                type="tel"
+                placeholder={t.enterPhone}
+                value={trackPhone}
+                onChange={(e) => setTrackPhone(e.target.value)}
+                className="track-input"
+              />
+              <button className="btn-primary" onClick={trackOrderStatus}>
+                {t.trackBtn}
+              </button>
+            </div>
+          ) : (
+            <div className="track-result">
+              <div className="order-id-box">
+                <span className="order-id-label">{t.orderId}</span>
+                <h2 className="order-id">{trackData.order_id}</h2>
+              </div>
+              <p><strong>{t.status}:</strong> <span className={`status-badge status-${trackData.status.toLowerCase()}`}>{trackData.status}</span></p>
+              <p><strong>Customer:</strong> {trackData.customer}</p>
+              <p><strong>Phone:</strong> {trackData.phone}</p>
+              <p><strong>Address:</strong> {trackData.address}</p>
+              <div className="order-items">
+                {trackData.items.map((item, i) => (
+                  <div key={i}>{item.name} × {item.quantity} {item.unit}</div>
+                ))}
+              </div>
+              <p><strong>{t.total}:</strong> ₹{trackData.total}</p>
+              <button className="btn-primary" onClick={() => { setTrackData(null); setTrackOrder(false); }}>
+                {t.continue}
+              </button>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // Cart
+  if (showCart) {
+    return (
+      <div className="App">
+        <header className="app-header">
+          <button className="back-btn" onClick={() => setShowCart(false)}>←</button>
+          <h1>🛒 {t.cart}</h1>
+          {cart.length > 0 && <button className="clear-btn" onClick={clearCart}>🗑️</button>}
+        </header>
+        <main className="container">
+          {cart.length === 0 ? (
+            <div className="empty-cart">
+              <div className="empty-icon">🛒</div>
+              <h3>{t.emptyCart}</h3>
+              <button className="btn-primary" onClick={() => setShowCart(false)}>
+                Browse Vegetables
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="cart-items">
+                {cart.map(item => (
+                  <div className="cart-item" key={item.id}>
+                    <img src={item.image} alt={item.name} className="cart-item-image" />
+                    <div className="cart-item-info">
+                      <h4>{getProductName(item)}</h4>
+                      <p className="cart-item-price">₹{item.price} / {item.unit}</p>
+                    </div>
+                    <div className="cart-item-controls">
+                      <div className="quantity-controls">
+                        <button onClick={() => removeFromCart(item.id)}>−</button>
+                        <span>{item.quantity}</span>
+                        <button onClick={() => addToCart(item)}>+</button>
+                      </div>
+                      <div className="cart-item-total">₹{item.price * item.quantity}</div>
+                      <button className="remove-item" onClick={() => removeItem(item.id)}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="cart-summary">
+                <div className="summary-row"><span>{t.subtotal}</span><span>₹{getSubtotal()}</span></div>
+                <div className="summary-row"><span>{t.delivery}</span><span>{getDeliveryCharge() === 0 ? 'FREE' : `₹${getDeliveryCharge()}`}</span></div>
+                <div className="summary-row total"><span>{t.total}</span><span>₹{getTotal()}</span></div>
+              </div>
+
+              <button className="btn-primary checkout-btn" onClick={() => setShowCheckout(true)}>
+                {t.checkout} →
+              </button>
+            </>
+          )}
+        </main>
+
+        {/* Checkout Modal */}
+        {showCheckout && (
+          <div className="checkout-modal">
+            <div className="checkout-content">
+              <div className="checkout-header">
+                <h2>📋 {t.checkout}</h2>
+                <button className="close-modal" onClick={() => setShowCheckout(false)}>✕</button>
+              </div>
+              <div className="checkout-body">
+                <input type="text" placeholder={t.name} value={customer.name}
+                  onChange={(e) => setCustomer({ ...customer, name: e.target.value })} className="checkout-input" />
+                <input type="tel" placeholder={t.phone} value={customer.phone}
+                  onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} className="checkout-input" />
+                <input type="text" placeholder={t.area} value={customer.area}
+                  onChange={(e) => setCustomer({ ...customer, area: e.target.value })} className="checkout-input" />
+                <textarea placeholder={t.address} value={customer.address}
+                  onChange={(e) => setCustomer({ ...customer, address: e.target.value })} className="checkout-input" rows="3" />
+                <input type="text" placeholder={t.landmark} value={customer.landmark}
+                  onChange={(e) => setCustomer({ ...customer, landmark: e.target.value })} className="checkout-input" />
+
+                <div className="payment-methods">
+                  <label className="payment-option">
+                    <input type="radio" name="payment" value="COD" checked={customer.payment_method === 'COD'}
+                      onChange={(e) => setCustomer({ ...customer, payment_method: e.target.value })} />
+                    {t.cod}
+                  </label>
+                  <label className="payment-option">
+                    <input type="radio" name="payment" value="UPI" checked={customer.payment_method === 'UPI'}
+                      onChange={(e) => setCustomer({ ...customer, payment_method: e.target.value })} />
+                    {t.upi}
+                  </label>
+                </div>
+
+                <div className="order-summary-mini">
+                  <h4>Order Summary</h4>
+                  <div className="summary-mini-row"><span>Items ({cart.length})</span><span>₹{getSubtotal()}</span></div>
+                  <div className="summary-mini-row"><span>{t.delivery}</span><span>{getDeliveryCharge() === 0 ? 'FREE' : `₹${getDeliveryCharge()}`}</span></div>
+                  <div className="summary-mini-row total-mini"><span>{t.total}</span><span>₹{getTotal()}</span></div>
+                </div>
+
+                <button className="btn-primary place-order-btn" onClick={placeOrder} disabled={loading}>
+                  {loading ? 'Placing Order...' : `🛍️ ${t.placeOrder}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Main Shop
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    (p.name_bn && p.name_bn.includes(search)) ||
+    (p.name_hi && p.name_hi.includes(search))
+  );
+
+  return (
+    <div className="App">
+      <header className="app-header">
+        <div className="header-left">
+          <span className="logo-icon">🌿</span>
+          <h1>{t.title}</h1>
+        </div>
+        <div className="header-right">
+          <LanguageSelector />
+          <button className="cart-btn" onClick={() => setShowCart(true)}>
+            🛒 <span className="cart-count">{cart.length}</span>
+          </button>
+        </div>
+      </header>
+
+      {notification && <div className="notification"><span>{notification}</span></div>}
+
+      <main className="container">
+        <div className="hero-section">
+          <h2>{t.title}</h2>
+          <p>{t.subtitle}</p>
+          <div className="features">
+            <span>🌱 Fresh</span>
+            <span>🚚 Free Delivery</span>
+            <span>💰 Best Prices</span>
+          </div>
+        </div>
+
+        <div className="search-bar">
+          <input
+            type="text"
+            placeholder={t.search}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="search-input"
+          />
+          <span className="search-icon">🔍</span>
+        </div>
+
+        <div className="product-grid">
+          {filteredProducts.map(product => {
+            const discountedPrice = product.price - (product.price * (product.discount || 0) / 100);
+            return (
+              <div className="product-card" key={product.id}>
+                <div className="product-image-container">
+                  <img src={product.image} alt={product.name} className="product-image" />
+                  {product.discount > 0 && (
+                    <span className="discount-badge">{product.discount}% OFF</span>
+                  )}
+                  {product.stock < 10 && product.stock > 0 && (
+                    <span className="stock-badge low-stock">Only {product.stock} left!</span>
+                  )}
+                  {product.stock === 0 && (
+                    <span className="stock-badge out-of-stock">Out of Stock</span>
+                  )}
+                </div>
+                <div className="product-info">
+                  <h3>{getProductName(product)}</h3>
+                  <div className="product-price">
+                    {product.discount > 0 ? (
+                      <>
+                        <span className="price discounted">₹{discountedPrice.toFixed(2)}</span>
+                        <span className="original-price">₹{product.price}</span>
+                      </>
+                    ) : (
+                      <span className="price">₹{product.price}</span>
+                    )}
+                    <span className="unit">/ {product.unit}</span>
+                  </div>
+                  <button
+                    className={`add-btn ${product.stock === 0 ? 'disabled' : ''}`}
+                    onClick={() => addToCart(product)}
+                    disabled={product.stock === 0}
+                  >
+                    {product.stock === 0 ? 'Out of Stock' : `${t.addToCart}`}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Track Order Button */}
+        <div className="track-section">
+          <button className="btn-track" onClick={() => setTrackOrder(true)}>
+            📦 {t.track}
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default App;
