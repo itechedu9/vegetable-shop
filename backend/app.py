@@ -427,32 +427,76 @@ def admin_dashboard():
             .active-badge.active { background: #e8f5e9; color: #1B5E20; }
             .active-badge.inactive { background: #FFEBEE; color: #B71C1C; }
             
+            /* Modal */
+            .modal-overlay {
+                display: none;
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.6);
+                backdrop-filter: blur(8px);
+                z-index: 1000;
+                justify-content: center;
+                align-items: center;
+                padding: 20px;
+            }
+            .modal-overlay.active { display: flex; }
+            .modal {
+                background: white;
+                max-width: 600px;
+                width: 100%;
+                border-radius: 20px;
+                padding: 24px;
+                max-height: 90vh;
+                overflow-y: auto;
+                animation: slideUp 0.3s ease;
+            }
+            @keyframes slideUp {
+                from { transform: translateY(40px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 16px;
+            }
+            .modal-header h2 { color: #1a472a; }
+            .modal-close {
+                background: #f0f0f0;
+                border: none;
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                font-size: 20px;
+                cursor: pointer;
+            }
+            .modal-body .form-group { margin-bottom: 12px; }
+            .modal-body label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 13px; color: #333; }
+            .modal-body input, .modal-body select, .modal-body textarea {
+                width: 100%;
+                padding: 8px 12px;
+                border: 2px solid #e8e8e8;
+                border-radius: 10px;
+                font-size: 14px;
+            }
+            .modal-body input:focus { border-color: #4CAF50; outline: none; }
+            .modal-footer {
+                display: flex;
+                gap: 10px;
+                margin-top: 16px;
+                justify-content: flex-end;
+            }
+            
             .order-card { background: #f8faf8; padding: 12px 14px; border-radius: 12px; margin-bottom: 8px; border-left: 4px solid #FF9800; }
             .order-card.delivered { border-left-color: #4CAF50; }
             .order-card.cancelled { border-left-color: #e74c3c; }
-            .order-header { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
-            .order-id { font-weight: 700; color: #2E7D32; }
-            .order-status { padding: 2px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-            .status-NEW { background: #FFF3E0; color: #E65100; }
-            .status-CONFIRMED { background: #E3F2FD; color: #0D47A1; }
-            .status-DELIVERED { background: #E8F5E9; color: #1B5E20; }
-            .status-CANCELLED { background: #FFEBEE; color: #B71C1C; }
-            
-            .notification-badge {
-                background: #e74c3c;
-                color: white;
-                border-radius: 50%;
-                padding: 2px 8px;
-                font-size: 11px;
-                font-weight: 700;
-                margin-left: 6px;
-            }
             
             @media (max-width: 600px) {
                 .stats { grid-template-columns: repeat(2, 1fr); }
                 .product-table { font-size: 11px; }
                 .product-table td, .product-table th { padding: 4px; }
                 .product-form { grid-template-columns: 1fr; }
+                .modal { padding: 16px; }
             }
         </style>
     </head>
@@ -460,7 +504,6 @@ def admin_dashboard():
         <div class="header">
             <h1>🌿 Admin <span>Dashboard</span></h1>
             <div>
-                <span id="notificationBell" style="cursor:pointer;font-size:20px;margin-right:12px;">🔔<span id="notifCount" class="notification-badge" style="display:none;">0</span></span>
                 <button class="btn btn-outline" onclick="loadAll()">🔄 Refresh</button>
             </div>
         </div>
@@ -494,7 +537,10 @@ def admin_dashboard():
             <h2>🥬 Product Management</h2>
             <div style="overflow-x:auto;">
                 <table class="product-table" id="productTable">
-                    <thead><tr><th>Image</th><th>Name</th><th>Price</th><th>MRP</th><th>Stock</th><th>Discount</th><th>Status</th><th>Actions</th></tr></thead>
+                    <thead><tr>
+                        <th>Image</th><th>Name</th><th>Price</th><th>MRP</th><th>Stock</th>
+                        <th>Discount</th><th>Status</th><th>Actions</th>
+                    </tr></thead>
                     <tbody id="productList"></tbody>
                 </table>
             </div>
@@ -553,11 +599,79 @@ def admin_dashboard():
             <div id="customerList"><p style="color:#888;">Loading...</p></div>
         </div>
 
+        <!-- ===== EDIT PRODUCT MODAL ===== -->
+        <div class="modal-overlay" id="editModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>✏️ Edit Product</h2>
+                    <button class="modal-close" onclick="closeEditModal()">✕</button>
+                </div>
+                <div class="modal-body" id="editModalBody">
+                    <div class="form-group">
+                        <label>Name (English)</label>
+                        <input type="text" id="editName" />
+                    </div>
+                    <div class="form-group">
+                        <label>Name (বাংলা)</label>
+                        <input type="text" id="editNameBn" />
+                    </div>
+                    <div class="form-group">
+                        <label>Name (हिंदी)</label>
+                        <input type="text" id="editNameHi" />
+                    </div>
+                    <div class="form-group">
+                        <label>Price (₹)</label>
+                        <input type="number" id="editPrice" />
+                    </div>
+                    <div class="form-group">
+                        <label>MRP (₹)</label>
+                        <input type="number" id="editMrp" />
+                    </div>
+                    <div class="form-group">
+                        <label>Unit</label>
+                        <input type="text" id="editUnit" placeholder="KG / Piece / Bundle" />
+                    </div>
+                    <div class="form-group">
+                        <label>Stock</label>
+                        <input type="number" id="editStock" />
+                    </div>
+                    <div class="form-group">
+                        <label>Discount %</label>
+                        <input type="number" id="editDiscount" />
+                    </div>
+                    <div class="form-group">
+                        <label>Image URL</label>
+                        <input type="text" id="editImage" />
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <input type="text" id="editCategory" />
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="editDesc" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="editActive">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-danger" onclick="closeEditModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveEditProduct()">💾 Save Changes</button>
+                </div>
+            </div>
+        </div>
+
         <script>
             let allProducts = [];
             let allOrders = [];
             let allCoupons = [];
             let allCustomers = [];
+            let editingProductId = null;
 
             function showTab(tab) {
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -577,7 +691,6 @@ def admin_dashboard():
                 loadStats();
                 loadCoupons();
                 loadCustomers();
-                loadNotifications();
             }
 
             function loadStats() {
@@ -604,15 +717,14 @@ def admin_dashboard():
                         data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                         list.innerHTML = data.slice(0, 30).map(o => `
                             <div class="order-card ${o.status.toLowerCase()}">
-                                <div class="order-header">
-                                    <span class="order-id">#${o.order_id}</span>
-                                    <span class="order-status status-${o.status}">${o.status}</span>
-                                    ${o.coupon_code ? `<span style="font-size:11px;color:#FF9800;">🏷️ ${o.coupon_code}</span>` : ''}
+                                <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+                                    <span style="font-weight:700;color:#2E7D32;">#${o.order_id}</span>
+                                    <span style="padding:2px 12px;border-radius:12px;font-size:11px;font-weight:600;background:${o.status==='NEW'?'#FFF3E0':o.status==='DELIVERED'?'#E8F5E9':'#FFEBEE'};color:${o.status==='NEW'?'#E65100':o.status==='DELIVERED'?'#1B5E20':'#B71C1C'};">${o.status}</span>
                                 </div>
                                 <div><strong>${o.customer}</strong> | 📱 ${o.phone}</div>
                                 <div>📍 ${o.address}</div>
-                                <div style="font-size:12px;color:#555;">${o.items.map(i => `${i.name} × ${i.quantity} ${i.unit}`).join(' | ')}</div>
-                                <div style="font-weight:700;color:#2E7D32;">Total: ₹${o.total} ${o.discount ? `(Discount: ₹${o.discount})` : ''}</div>
+                                <div style="font-size:12px;color:#555;">${o.items.map(i => `${i.name} × ${i.quantity}`).join(' | ')}</div>
+                                <div style="font-weight:700;color:#2E7D32;">Total: ₹${o.total}</div>
                                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
                                     ${o.status === 'NEW' ? `<button class="btn btn-info btn-sm" onclick="updateStatus('${o.order_id}','CONFIRMED')">✅ Confirm</button>` : ''}
                                     ${o.status === 'CONFIRMED' ? `<button class="btn btn-primary btn-sm" onclick="updateStatus('${o.order_id}','DELIVERED')">✅ Deliver</button>` : ''}
@@ -641,13 +753,80 @@ def admin_dashboard():
                                 <td>${p.discount || 0}%</td>
                                 <td><span class="active-badge ${p.active !== false ? 'active' : 'inactive'}">${p.active !== false ? 'Active' : 'Inactive'}</span></td>
                                 <td>
-                                    <button class="btn btn-warning btn-sm" onclick="toggleProduct(${p.id})">${p.active !== false ? '🔴 Inactive' : '🟢 Active'}</button>
+                                    <button class="btn btn-info btn-sm" onclick="openEditModal(${p.id})">✏️ Edit</button>
+                                    <button class="btn btn-warning btn-sm" onclick="toggleProduct(${p.id})">${p.active !== false ? '🔴' : '🟢'}</button>
                                     <button class="btn btn-danger btn-sm" onclick="deleteProduct(${p.id})">🗑️</button>
                                 </td>
                             </tr>
                         `).join('');
                     });
             }
+
+            // ===== EDIT MODAL FUNCTIONS =====
+            function openEditModal(productId) {
+                const product = allProducts.find(p => p.id === productId);
+                if (!product) return;
+                
+                editingProductId = productId;
+                document.getElementById('editName').value = product.name || '';
+                document.getElementById('editNameBn').value = product.name_bn || '';
+                document.getElementById('editNameHi').value = product.name_hi || '';
+                document.getElementById('editPrice').value = product.price || 0;
+                document.getElementById('editMrp').value = product.mrp || product.price || 0;
+                document.getElementById('editUnit').value = product.unit || 'KG';
+                document.getElementById('editStock').value = product.stock || 0;
+                document.getElementById('editDiscount').value = product.discount || 0;
+                document.getElementById('editImage').value = product.image || '';
+                document.getElementById('editCategory').value = product.category || 'Vegetables';
+                document.getElementById('editDesc').value = product.description || '';
+                document.getElementById('editActive').value = product.active !== false ? 'true' : 'false';
+                
+                document.getElementById('editModal').classList.add('active');
+            }
+
+            function closeEditModal() {
+                document.getElementById('editModal').classList.remove('active');
+                editingProductId = null;
+            }
+
+            function saveEditProduct() {
+                if (!editingProductId) return;
+                
+                const productData = {
+                    name: document.getElementById('editName').value,
+                    name_bn: document.getElementById('editNameBn').value,
+                    name_hi: document.getElementById('editNameHi').value,
+                    price: parseFloat(document.getElementById('editPrice').value) || 0,
+                    mrp: parseFloat(document.getElementById('editMrp').value) || 0,
+                    unit: document.getElementById('editUnit').value || 'KG',
+                    stock: parseInt(document.getElementById('editStock').value) || 0,
+                    discount: parseFloat(document.getElementById('editDiscount').value) || 0,
+                    image: document.getElementById('editImage').value || 'https://via.placeholder.com/300',
+                    category: document.getElementById('editCategory').value || 'Vegetables',
+                    description: document.getElementById('editDesc').value || '',
+                    active: document.getElementById('editActive').value === 'true'
+                };
+                
+                fetch(`/api/products/${editingProductId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(productData)
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Product updated successfully!');
+                        closeEditModal();
+                        loadProducts();
+                    }
+                })
+                .catch(err => alert('Error updating product'));
+            }
+
+            // Close modal on overlay click
+            document.getElementById('editModal').addEventListener('click', function(e) {
+                if (e.target === this) closeEditModal();
+            });
 
             function loadAnalytics() {
                 fetch('/api/orders/stats')
@@ -715,21 +894,6 @@ def admin_dashboard():
                     });
             }
 
-            function loadNotifications() {
-                fetch('/api/notifications')
-                    .then(r => r.json())
-                    .then(data => {
-                        const count = data.length;
-                        const badge = document.getElementById('notifCount');
-                        if (count > 0) {
-                            badge.style.display = 'inline';
-                            badge.textContent = count;
-                        } else {
-                            badge.style.display = 'none';
-                        }
-                    });
-            }
-
             function updateStatus(orderId, status) {
                 fetch('/api/order/status', {
                     method: 'PUT',
@@ -744,9 +908,12 @@ def admin_dashboard():
             }
 
             function deleteProduct(id) {
-                if (!confirm('Delete this product?')) return;
+                if (!confirm('⚠️ Are you sure you want to delete this product?')) return;
                 fetch(`/api/products/${id}`, { method: 'DELETE' })
-                    .then(() => loadProducts());
+                    .then(() => {
+                        alert('✅ Product deleted!');
+                        loadProducts();
+                    });
             }
 
             function deleteCoupon(code) {
@@ -847,7 +1014,6 @@ def admin_dashboard():
     </html>
     '''
     return html
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
