@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
+// ===== সরাসরি API URL সেট করুন =====
+const API_URL = 'https://vegetable-shop-api-no22.onrender.com';
+
 function App() {
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState('');
-  const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState('');
-  const [language, setLanguage] = useState('en'); // en, bn, hi
+  const [language, setLanguage] = useState('en');
   const [search, setSearch] = useState('');
   const [trackOrder, setTrackOrder] = useState(false);
   const [trackData, setTrackData] = useState(null);
@@ -122,15 +125,17 @@ function App() {
 
   const t = translations[language];
 
+  // ===== API থেকে প্রোডাক্ট লোড করুন =====
   useEffect(() => {
-    fetch('http://localhost:5000/api/products')
+    fetch(`${API_URL}/api/products`)
       .then(res => res.json())
       .then(data => {
+        console.log('Products loaded:', data);
         setProducts(data);
         setLoading(false);
       })
       .catch(err => {
-        console.error('Error:', err);
+        console.error('Error fetching products:', err);
         setLoading(false);
       });
   }, []);
@@ -153,7 +158,7 @@ function App() {
       }
       return [...prev, { ...product, quantity: 1 }];
     });
-    setNotification(`${getProductName(product)} ${t.addToCart}!`);
+    setNotification(`${getProductName(product)} added to cart!`);
     setTimeout(() => setNotification(''), 2000);
   };
 
@@ -225,7 +230,7 @@ function App() {
     };
 
     try {
-      const response = await fetch('http://localhost:5000/api/order', {
+      const response = await fetch(`${API_URL}/api/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData)
@@ -254,7 +259,7 @@ function App() {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/orders/track', {
+      const response = await fetch(`${API_URL}/api/orders/track`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: trackOrderId, phone: trackPhone })
@@ -271,7 +276,6 @@ function App() {
     }
   };
 
-  // Language selector
   const LanguageSelector = () => (
     <div className="language-selector">
       <button className={`lang-btn ${language === 'en' ? 'active' : ''}`} onClick={() => setLanguage('en')}>🇬🇧</button>
@@ -282,7 +286,6 @@ function App() {
 
   // Order Success
   if (orderPlaced) {
-    const statusSteps = ['NEW', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED'];
     return (
       <div className="order-success">
         <div className="success-card">
@@ -291,17 +294,6 @@ function App() {
           <div className="order-id-box">
             <span className="order-id-label">{t.orderId}</span>
             <h2 className="order-id">{orderId}</h2>
-          </div>
-          <div className="status-tracking">
-            {statusSteps.map((step, index) => (
-              <div className={`tracking-step ${index === 0 ? 'active' : ''}`} key={step}>
-                {step === 'NEW' && '📦 Order Received'}
-                {step === 'CONFIRMED' && '✅ Confirmed'}
-                {step === 'PREPARING' && '🔪 Preparing'}
-                {step === 'OUT_FOR_DELIVERY' && '🚚 Out for Delivery'}
-                {step === 'DELIVERED' && '🏠 Delivered'}
-              </div>
-            ))}
           </div>
           <button className="btn-primary" onClick={() => setOrderPlaced(false)}>
             {t.continue}
@@ -347,15 +339,6 @@ function App() {
                 <h2 className="order-id">{trackData.order_id}</h2>
               </div>
               <p><strong>{t.status}:</strong> <span className={`status-badge status-${trackData.status.toLowerCase()}`}>{trackData.status}</span></p>
-              <p><strong>Customer:</strong> {trackData.customer}</p>
-              <p><strong>Phone:</strong> {trackData.phone}</p>
-              <p><strong>Address:</strong> {trackData.address}</p>
-              <div className="order-items">
-                {trackData.items.map((item, i) => (
-                  <div key={i}>{item.name} × {item.quantity} {item.unit}</div>
-                ))}
-              </div>
-              <p><strong>{t.total}:</strong> ₹{trackData.total}</p>
               <button className="btn-primary" onClick={() => { setTrackData(null); setTrackOrder(false); }}>
                 {t.continue}
               </button>
@@ -420,7 +403,6 @@ function App() {
           )}
         </main>
 
-        {/* Checkout Modal */}
         {showCheckout && (
           <div className="checkout-modal">
             <div className="checkout-content">
@@ -471,12 +453,18 @@ function App() {
     );
   }
 
-  // Main Shop
+  // ===== MAIN SHOP =====
   const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.name_bn && p.name_bn.includes(search)) ||
-    (p.name_hi && p.name_hi.includes(search))
+    p.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="loading">
+        <h2>🔄 Loading Fresh Veggies...</h2>
+      </div>
+    );
+  }
 
   return (
     <div className="App">
@@ -517,16 +505,16 @@ function App() {
           <span className="search-icon">🔍</span>
         </div>
 
-        <div className="product-grid">
-          {filteredProducts.map(product => {
-            const discountedPrice = product.price - (product.price * (product.discount || 0) / 100);
-            return (
+        {filteredProducts.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
+            <p>No products found</p>
+          </div>
+        ) : (
+          <div className="product-grid">
+            {filteredProducts.map(product => (
               <div className="product-card" key={product.id}>
                 <div className="product-image-container">
                   <img src={product.image} alt={product.name} className="product-image" />
-                  {product.discount > 0 && (
-                    <span className="discount-badge">{product.discount}% OFF</span>
-                  )}
                   {product.stock < 10 && product.stock > 0 && (
                     <span className="stock-badge low-stock">Only {product.stock} left!</span>
                   )}
@@ -537,14 +525,7 @@ function App() {
                 <div className="product-info">
                   <h3>{getProductName(product)}</h3>
                   <div className="product-price">
-                    {product.discount > 0 ? (
-                      <>
-                        <span className="price discounted">₹{discountedPrice.toFixed(2)}</span>
-                        <span className="original-price">₹{product.price}</span>
-                      </>
-                    ) : (
-                      <span className="price">₹{product.price}</span>
-                    )}
+                    <span className="price">₹{product.price}</span>
                     <span className="unit">/ {product.unit}</span>
                   </div>
                   <button
@@ -556,11 +537,10 @@ function App() {
                   </button>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
 
-        {/* Track Order Button */}
         <div className="track-section">
           <button className="btn-track" onClick={() => setTrackOrder(true)}>
             📦 {t.track}
