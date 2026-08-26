@@ -6,12 +6,11 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app)
 
-# Sample products
+# Sample data
 products = [
-    {"id": 1, "name": "Potato", "price": 30, "unit": "KG", "stock": 100, "category": "Vegetables", "active": True},
-    {"id": 2, "name": "Tomato", "price": 40, "unit": "KG", "stock": 80, "category": "Vegetables", "active": True},
-    {"id": 3, "name": "Onion", "price": 35, "unit": "KG", "stock": 150, "category": "Vegetables", "active": True},
-    {"id": 4, "name": "Rice", "price": 60, "unit": "KG", "stock": 200, "category": "Grocery", "active": True},
+    {"id": 1, "name": "Potato", "price": 30, "unit": "KG", "stock": 100, "active": True},
+    {"id": 2, "name": "Tomato", "price": 40, "unit": "KG", "stock": 80, "active": True},
+    {"id": 3, "name": "Onion", "price": 35, "unit": "KG", "stock": 150, "active": True},
 ]
 
 orders = []
@@ -19,21 +18,11 @@ order_counter = 1
 
 @app.route('/')
 def home():
-    return jsonify({'message': '🌿 Vegetable Shop API', 'status': 'running', 'version': '3.0.0'})
+    return jsonify({'message': '🌿 Vegetable Shop API', 'status': 'running'})
 
 @app.route('/api/products')
 def get_products():
     return jsonify(products)
-
-@app.route('/api/products/active')
-def get_active_products():
-    active = [p for p in products if p.get('active', True)]
-    return jsonify(active)
-
-@app.route('/api/products/low-stock')
-def get_low_stock():
-    low = [p for p in products if p.get('stock', 0) < 20]
-    return jsonify(low)
 
 @app.route('/api/products', methods=['POST'])
 def add_product():
@@ -45,41 +34,9 @@ def add_product():
         'price': float(data.get('price', 0)),
         'unit': data.get('unit', 'KG'),
         'stock': int(data.get('stock', 0)),
-        'category': data.get('category', 'Vegetables'),
-        'active': data.get('active', True)
+        'active': True
     }
     products.append(product)
-    return jsonify({'success': True, 'product': product})
-
-@app.route('/api/products/<int:product_id>', methods=['PUT'])
-def update_product(product_id):
-    data = request.json
-    product = next((p for p in products if p['id'] == product_id), None)
-    if not product:
-        return jsonify({'error': 'Not found'}), 404
-    product.update({
-        'name': data.get('name', product['name']),
-        'price': float(data.get('price', product['price'])),
-        'stock': int(data.get('stock', product['stock'])),
-        'active': data.get('active', product.get('active', True))
-    })
-    return jsonify({'success': True, 'product': product})
-
-@app.route('/api/products/<int:product_id>/stock', methods=['PUT'])
-def update_stock(product_id):
-    data = request.json
-    product = next((p for p in products if p['id'] == product_id), None)
-    if not product:
-        return jsonify({'error': 'Not found'}), 404
-    product['stock'] = int(data.get('stock', product['stock']))
-    return jsonify({'success': True, 'product': product})
-
-@app.route('/api/products/<int:product_id>/toggle', methods=['PUT'])
-def toggle_product(product_id):
-    product = next((p for p in products if p['id'] == product_id), None)
-    if not product:
-        return jsonify({'error': 'Not found'}), 404
-    product['active'] = not product.get('active', True)
     return jsonify({'success': True, 'product': product})
 
 @app.route('/api/products/<int:product_id>', methods=['DELETE'])
@@ -91,13 +48,6 @@ def delete_product(product_id):
 @app.route('/api/orders')
 def get_orders():
     return jsonify(orders)
-
-@app.route('/api/orders/stats')
-def get_stats():
-    total = len(orders)
-    new = len([o for o in orders if o['status'] == 'NEW'])
-    total_sales = sum([o.get('total', 0) for o in orders if o['status'] != 'CANCELLED'])
-    return jsonify({'total_orders': total, 'new_orders': new, 'total_sales': total_sales})
 
 @app.route('/api/order', methods=['POST'])
 def create_order():
@@ -133,9 +83,16 @@ def update_status():
             return jsonify({'success': True, 'order': order})
     return jsonify({'success': False}), 404
 
+@app.route('/api/orders/stats')
+def get_stats():
+    total = len(orders)
+    new = len([o for o in orders if o['status'] == 'NEW'])
+    total_sales = sum([o.get('total', 0) for o in orders if o['status'] != 'CANCELLED'])
+    return jsonify({'total_orders': total, 'new_orders': new, 'total_sales': total_sales})
+
 @app.route('/admin')
-def admin_dashboard():
-    html = '''
+def admin():
+    return '''
     <!DOCTYPE html>
     <html>
     <head>
@@ -145,7 +102,7 @@ def admin_dashboard():
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: Arial, sans-serif; background: #f0f4f8; padding: 16px; }
-            .header { background: #2E7D32; color: white; padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+            .header { background: #2E7D32; color: white; padding: 16px; border-radius: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
             .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
             .stat-card { background: white; padding: 14px; border-radius: 12px; text-align: center; }
             .stat-card .number { font-size: 24px; font-weight: 700; color: #2E7D32; }
@@ -157,9 +114,7 @@ def admin_dashboard():
             .btn-info { background: #2196F3; color: white; }
             .form-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
             .form-group input { padding: 8px; border: 2px solid #ddd; border-radius: 8px; }
-            @media (max-width: 600px) {
-                .stats { grid-template-columns: repeat(2, 1fr); }
-            }
+            @media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } }
         </style>
     </head>
     <body>
@@ -182,8 +137,8 @@ def admin_dashboard():
                 <input id="pName" placeholder="Name" />
                 <input id="pPrice" placeholder="Price" type="number" />
                 <input id="pStock" placeholder="Stock" type="number" />
-                <input id="pUnit" placeholder="Unit (KG/Piece)" />
-                <button class="btn btn-primary" onclick="addProduct()">Add Product</button>
+                <input id="pUnit" placeholder="Unit" />
+                <button class="btn btn-primary" onclick="addProduct()">Add</button>
             </div>
         </div>
         
@@ -193,12 +148,7 @@ def admin_dashboard():
         </div>
         
         <script>
-            function loadAll() {
-                loadStats();
-                loadOrders();
-                loadProducts();
-            }
-            
+            function loadAll() { loadStats(); loadOrders(); loadProducts(); }
             function loadStats() {
                 fetch('/api/orders/stats').then(r=>r.json()).then(d => {
                     document.getElementById('totalOrders').textContent = d.total_orders || 0;
@@ -206,14 +156,13 @@ def admin_dashboard():
                     document.getElementById('totalSales').textContent = '₹' + (d.total_sales || 0);
                 });
             }
-            
             function loadOrders() {
                 fetch('/api/orders').then(r=>r.json()).then(d => {
                     const list = document.getElementById('ordersList');
-                    if (d.length === 0) { list.innerHTML = '<p>No orders yet</p>'; return; }
+                    if (d.length === 0) { list.innerHTML = '<p>No orders</p>'; return; }
                     list.innerHTML = d.map(o => `
                         <div class="order-item">
-                            <b>#${o.order_id}</b> | ${o.customer} | ₹${o.total} 
+                            <b>#${o.order_id}</b> | ${o.customer} | ₹${o.total}
                             <span style="background:#fff3e0;padding:2px 10px;border-radius:12px;font-size:12px;">${o.status}</span>
                             ${o.status === 'NEW' ? `<button class="btn btn-info" onclick="updateStatus('${o.order_id}','CONFIRMED')">Confirm</button>` : ''}
                             ${o.status === 'CONFIRMED' ? `<button class="btn btn-primary" onclick="updateStatus('${o.order_id}','DELIVERED')">Deliver</button>` : ''}
@@ -222,7 +171,6 @@ def admin_dashboard():
                     `).join('');
                 });
             }
-            
             function loadProducts() {
                 fetch('/api/products').then(r=>r.json()).then(d => {
                     const list = document.getElementById('productList');
@@ -230,48 +178,30 @@ def admin_dashboard():
                     list.innerHTML = d.map(p => `
                         <div style="border-bottom:1px solid #eee;padding:6px 0;display:flex;justify-content:space-between;flex-wrap:wrap;">
                             <span><b>${p.name}</b> | ₹${p.price} | Stock: ${p.stock}</span>
-                            <span>
-                                <button class="btn btn-info" onclick="toggleProduct(${p.id})">${p.active !== false ? '🔴' : '🟢'}</button>
-                                <button class="btn btn-danger" onclick="deleteProduct(${p.id})">🗑️</button>
-                            </span>
+                            <span><button class="btn btn-danger" onclick="deleteProduct(${p.id})">🗑️</button></span>
                         </div>
                     `).join('');
                 });
             }
-            
             function updateStatus(orderId, status) {
-                fetch('/api/order/status', {
-                    method: 'PUT',
-                    headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({order_id: orderId, status: status})
-                }).then(() => loadAll());
+                fetch('/api/order/status', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:orderId,status:status})})
+                .then(() => loadAll());
             }
-            
             function addProduct() {
-                fetch('/api/products', {
-                    method: 'POST',
-                    headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({
-                        name: document.getElementById('pName').value,
-                        price: parseFloat(document.getElementById('pPrice').value) || 0,
-                        stock: parseInt(document.getElementById('pStock').value) || 0,
-                        unit: document.getElementById('pUnit').value || 'KG'
-                    })
-                }).then(() => { 
+                fetch('/api/products', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+                    name: document.getElementById('pName').value,
+                    price: parseFloat(document.getElementById('pPrice').value) || 0,
+                    stock: parseInt(document.getElementById('pStock').value) || 0,
+                    unit: document.getElementById('pUnit').value || 'KG'
+                })}).then(() => { 
                     ['pName','pPrice','pStock','pUnit'].forEach(id => document.getElementById(id).value = '');
                     loadAll(); 
                 });
             }
-            
-            function toggleProduct(id) {
-                fetch(`/api/products/${id}/toggle`, {method: 'PUT'}).then(() => loadProducts());
-            }
-            
             function deleteProduct(id) {
-                if (!confirm('Delete this product?')) return;
-                fetch(`/api/products/${id}`, {method: 'DELETE'}).then(() => loadProducts());
+                if (!confirm('Delete?')) return;
+                fetch(`/api/products/${id}`, {method:'DELETE'}).then(() => loadProducts());
             }
-            
             loadAll();
             setInterval(loadAll, 30000);
         </script>
