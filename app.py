@@ -40,15 +40,7 @@ def init_data():
         {"id": 4, "name": "Sugar", "name_bn": "চিনি", "category": "Grocery", "sub_category": "Essentials",
          "price": 45, "mrp": 55, "unit": "KG", "stock": 150, "min_stock": 30, "discount": 15,
          "image": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=200&h=200&fit=crop",
-         "shop_id": "shop2", "supplier_id": "sup2", "active": True},
-        {"id": 5, "name": "Onion", "name_bn": "পেঁয়াজ", "category": "Vegetables", "sub_category": "Roots",
-         "price": 35, "mrp": 45, "unit": "KG", "stock": 150, "min_stock": 25, "discount": 22,
-         "image": "https://images.unsplash.com/photo-1508747703725-719777637510?w=200&h=200&fit=crop",
-         "shop_id": "shop1", "supplier_id": "sup1", "active": True},
-        {"id": 6, "name": "Garlic", "name_bn": "রসুন", "category": "Vegetables", "sub_category": "Roots",
-         "price": 120, "mrp": 150, "unit": "KG", "stock": 30, "min_stock": 10, "discount": 20,
-         "image": "https://images.unsplash.com/photo-1541808814-4544cb5342c7?w=200&h=200&fit=crop",
-         "shop_id": "shop1", "supplier_id": "sup1", "active": True}
+         "shop_id": "shop2", "supplier_id": "sup2", "active": True}
     ]
 
 init_data()
@@ -58,7 +50,6 @@ init_data()
 def home():
     return jsonify({'message': '🌿 Vegetable & Grocery Shop API', 'status': 'running', 'version': '3.0'})
 
-# ---------- প্রোডাক্ট ----------
 @app.route('/api/products')
 def get_products():
     return jsonify(products)
@@ -150,7 +141,6 @@ def delete_product(product_id):
     products = [p for p in products if p['id'] != product_id]
     return jsonify({'success': True})
 
-# ---------- শপ ----------
 @app.route('/api/shops')
 def get_shops():
     return jsonify(shops)
@@ -167,7 +157,6 @@ def add_shop():
     shops.append(shop)
     return jsonify({'success': True, 'shop': shop})
 
-# ---------- সাপ্লায়ার ----------
 @app.route('/api/suppliers')
 def get_suppliers():
     return jsonify(suppliers)
@@ -184,7 +173,6 @@ def add_supplier():
     suppliers.append(supplier)
     return jsonify({'success': True, 'supplier': supplier})
 
-# ---------- অর্ডার ----------
 @app.route('/api/orders')
 def get_orders():
     return jsonify(orders)
@@ -235,7 +223,7 @@ def update_status():
             return jsonify({'success': True, 'order': order})
     return jsonify({'success': False}), 404
 
-# ===== পূর্ণাঙ্গ অ্যাডমিন প্যানেল (Flask API Connected) =====
+# ===== পূর্ণাঙ্গ অ্যাডমিন প্যানেল (Flask API Connected + Image Upload) =====
 @app.route('/admin')
 def admin_dashboard():
     return '''
@@ -286,6 +274,7 @@ def admin_dashboard():
         .file-upload:hover { background: #ecf9ec; border-color: #2e7d32; }
         .file-upload i { font-size: 1.4rem; color: #2e7d32; margin-right: 8px; }
         #imagePreview { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 4px; }
+        #editImagePreview { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 4px; }
         .preview-item { position: relative; width: 70px; height: 70px; border-radius: 18px; border: 2px solid #d4e8d4; overflow: hidden; background: #f0f8f0; }
         .preview-item img { width: 100%; height: 100%; object-fit: cover; }
         .preview-item .remove { position: absolute; top: -6px; right: -6px; background: #b13e2e; color: white; border-radius: 30px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; border: 2px solid white; }
@@ -419,12 +408,15 @@ def admin_dashboard():
         <h2><i class="fas fa-edit"></i> Edit Item</h2>
         <form id="editForm">
             <input type="hidden" id="editIdField">
+            
             <label>Name *</label><input type="text" id="editName" required>
             <label>Name (বাংলা)</label><input type="text" id="editNameBn">
+            
             <div class="row-2">
                 <div><label>Category</label><select id="editCategory"><option>Vegetables</option><option>Grocery</option><option>Fruits</option></select></div>
                 <div><label>Sub Category</label><input type="text" id="editSubCategory"></div>
             </div>
+            
             <div class="row-2">
                 <div><label>Price (₹)</label><input type="number" id="editPrice" step="0.01"></div>
                 <div><label>MRP (₹)</label><input type="number" id="editMrp" step="0.01"></div>
@@ -441,7 +433,16 @@ def admin_dashboard():
                 <div><label>Shop</label><select id="editShop"><option value="shop1">Main Shop</option><option value="shop2">Branch 1</option></select></div>
                 <div><label>Supplier</label><select id="editSupplier"><option value="sup1">Green Farms</option><option value="sup2">Fresh Supply</option></select></div>
             </div>
-            <label>Image URL</label><input type="text" id="editImage">
+            
+            <!-- ===== EDIT MODAL IMAGE UPLOAD ===== -->
+            <label><i class="fas fa-image"></i> Image</label>
+            <div class="file-upload" id="editImageUploadTrigger">
+                <i class="fas fa-cloud-upload-alt"></i> Click to change image (JPEG/PNG)
+                <input type="file" id="editImageFileInput" accept="image/*" style="display:none">
+            </div>
+            <input type="text" id="editImage" placeholder="Image URL" style="margin-top:6px;">
+            <div id="editImagePreview"></div>
+            
             <div class="modal-actions">
                 <button type="button" class="btn" id="updateItemBtn"><i class="fas fa-save"></i> Update</button>
                 <button type="button" class="btn btn-outline" id="closeEditModalBtn"><i class="fas fa-times"></i> Cancel</button>
@@ -489,7 +490,7 @@ def admin_dashboard():
         setTimeout(() => toast.classList.remove('show'), 2800);
     }
 
-    // ---------- IMAGE UPLOAD (convert to base64) ----------
+    // ---------- ADD FORM IMAGE UPLOAD ----------
     document.getElementById('imageUploadTrigger').addEventListener('click', function() {
         document.getElementById('imageFileInput').click();
     });
@@ -514,12 +515,31 @@ def admin_dashboard():
         itemImage.value = '';
         imagePreview.innerHTML = '';
     }
-    function updatePreviewFromUrl(url) {
-        if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
-            imagePreview.innerHTML = `<div class="preview-item"><img src="${url}" /><span class="remove" onclick="removeImage()">✕</span></div>`;
-        } else {
-            imagePreview.innerHTML = '';
-        }
+
+    // ---------- EDIT FORM IMAGE UPLOAD ----------
+    document.getElementById('editImageUploadTrigger').addEventListener('click', function() {
+        document.getElementById('editImageFileInput').click();
+    });
+    document.getElementById('editImageFileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            const base64 = ev.target.result;
+            document.getElementById('editImage').value = base64;
+            showEditPreview(base64);
+            showToast('✅ Image updated for edit!');
+        };
+        reader.readAsDataURL(file);
+        this.value = '';
+    });
+
+    function showEditPreview(src) {
+        document.getElementById('editImagePreview').innerHTML = `<div class="preview-item"><img src="${src}" /><span class="remove" onclick="removeEditImage()">✕</span></div>`;
+    }
+    function removeEditImage() {
+        document.getElementById('editImage').value = '';
+        document.getElementById('editImagePreview').innerHTML = '';
     }
 
     // ---------- API CALLS ----------
@@ -704,11 +724,20 @@ def admin_dashboard():
         document.getElementById('editShop').value = item.shop_id || 'shop1';
         document.getElementById('editSupplier').value = item.supplier_id || 'sup1';
         document.getElementById('editImage').value = item.image || '';
+        
+        // Show existing image in edit preview
+        if (item.image) {
+            showEditPreview(item.image);
+        } else {
+            document.getElementById('editImagePreview').innerHTML = '';
+        }
+        
         document.getElementById('editModal').classList.add('active');
     }
 
     function closeEditModal() {
         document.getElementById('editModal').classList.remove('active');
+        document.getElementById('editImagePreview').innerHTML = '';
     }
 
     document.getElementById('updateItemBtn').addEventListener('click', function() {
