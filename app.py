@@ -2,12 +2,11 @@ from flask import Flask, jsonify, request, render_template_string
 from flask_cors import CORS
 import os
 from datetime import datetime
-import json
 
 app = Flask(__name__)
 CORS(app)
 
-# ===== ডাটাবেস সিমুলেশন (ইন-মেমরি) =====
+# ===== ডাটা স্টোর =====
 products = []
 orders = []
 suppliers = []
@@ -41,7 +40,7 @@ def init_data():
         {"id": 4, "name": "Sugar", "name_bn": "চিনি", "category": "Grocery", "sub_category": "Essentials",
          "price": 45, "mrp": 55, "unit": "KG", "stock": 150, "min_stock": 30, "discount": 15,
          "image": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=200&h=200&fit=crop",
-         "shop_id": "shop1", "supplier_id": "sup2", "active": True},
+         "shop_id": "shop2", "supplier_id": "sup2", "active": True},
         {"id": 5, "name": "Onion", "name_bn": "পেঁয়াজ", "category": "Vegetables", "sub_category": "Roots",
          "price": 35, "mrp": 45, "unit": "KG", "stock": 150, "min_stock": 25, "discount": 22,
          "image": "https://images.unsplash.com/photo-1508747703725-719777637510?w=200&h=200&fit=crop",
@@ -236,386 +235,563 @@ def update_status():
             return jsonify({'success': True, 'order': order})
     return jsonify({'success': False}), 404
 
-# ===== অ্যাডমিন প্যানেল =====
+# ===== পূর্ণাঙ্গ অ্যাডমিন প্যানেল (Flask API Connected) =====
 @app.route('/admin')
 def admin_dashboard():
-    html = '''
+    return '''
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌿 Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+    <title>🌿 Pro Stock & Item Manager</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #f0f4f8; padding: 12px; }
-        .header { background: linear-gradient(135deg, #1a472a, #2E7D32); color: white; padding: 16px 20px; border-radius: 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-        .header h1 { font-size: 20px; }
-        .header h1 span { font-size: 14px; font-weight: 400; opacity: 0.8; }
-        .btn { padding: 8px 16px; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-        .btn:hover { transform: scale(0.97); }
-        .btn-primary { background: #4CAF50; color: white; }
-        .btn-danger { background: #e74c3c; color: white; }
-        .btn-warning { background: #FF9800; color: white; }
-        .btn-info { background: #2196F3; color: white; }
-        .btn-success { background: #27ae60; color: white; }
-        .btn-outline { background: transparent; border: 2px solid white; color: white; }
-        .btn-sm { padding: 4px 10px; font-size: 11px; }
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
-        .stat-card { background: white; padding: 14px; border-radius: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-        .stat-card .number { font-size: 26px; font-weight: 700; color: #2E7D32; }
-        .stat-card .label { font-size: 12px; color: #888; }
-        .tabs { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; flex-wrap: wrap; }
-        .tab { padding: 8px 16px; border-radius: 20px; border: 2px solid #ddd; background: white; cursor: pointer; font-weight: 600; font-size: 13px; white-space: nowrap; }
-        .tab.active { background: #2E7D32; color: white; border-color: #2E7D32; }
-        .section { background: white; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
-        .section h2 { font-size: 18px; color: #1a472a; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-        .form-grid input, .form-grid select { padding: 8px 12px; border: 2px solid #e8e8e8; border-radius: 10px; font-size: 14px; }
-        .form-grid input:focus, .form-grid select:focus { border-color: #4CAF50; outline: none; }
-        .table-wrap { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { text-align: left; padding: 8px 6px; background: #e8f5e9; color: #1a472a; }
-        td { padding: 8px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
-        .badge { padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-        .badge-active { background: #e8f5e9; color: #1B5E20; }
-        .badge-inactive { background: #FFEBEE; color: #B71C1C; }
-        .badge-new { background: #FFF3E0; color: #E65100; }
-        .badge-confirmed { background: #E3F2FD; color: #0D47A1; }
-        .badge-delivered { background: #E8F5E9; color: #1B5E20; }
-        .badge-cancelled { background: #FFEBEE; color: #B71C1C; }
-        .stock-low { color: #e74c3c; font-weight: 700; }
-        .modal { display: none; position: fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); z-index:1000; justify-content:center; align-items:center; padding:20px; }
-        .modal.active { display: flex; }
-        .modal-box { background: white; max-width: 600px; width:100%; border-radius:20px; padding:24px; max-height:90vh; overflow-y:auto; }
-        .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
-        .modal-close { background:#f0f0f0; border:none; width:36px; height:36px; border-radius:50%; font-size:20px; cursor:pointer; }
-        .modal-footer { display:flex; gap:10px; margin-top:16px; justify-content:flex-end; }
-        @media (max-width:600px) { .stats { grid-template-columns:repeat(2,1fr); } .form-grid { grid-template-columns:1fr; } }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
+        body { background: #f4f7fc; padding: 20px; min-height: 100vh; display: flex; justify-content: center; }
+        .app { max-width: 1400px; width: 100%; background: white; border-radius: 32px; box-shadow: 0 20px 60px rgba(0,20,40,0.08); padding: 24px 28px 40px; }
+        h1 { font-weight: 600; font-size: 1.9rem; color: #0a2e1f; display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+        h1 i { color: #2e7d32; }
+        .sub { color: #3e5a4a; margin-bottom: 24px; border-left: 6px solid #4caf50; padding-left: 18px; font-weight: 400; background: #f0f8f0; border-radius: 0 40px 40px 0; line-height: 1.6; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 20px 0 30px; }
+        @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+        .card { background: #ffffff; border-radius: 28px; padding: 18px 22px 26px; box-shadow: 0 6px 20px rgba(0,30,20,0.04); border: 1px solid #eaf0e8; }
+        .card-title { font-weight: 600; font-size: 1.2rem; margin-bottom: 16px; color: #1a3a2a; display: flex; align-items: center; gap: 12px; border-bottom: 2px dashed #d4e8d4; padding-bottom: 10px; }
+        .card-title i { color: #2e7d32; width: 28px; }
+        label { font-weight: 500; font-size: 0.85rem; color: #1f452f; display: block; margin: 12px 0 4px; }
+        input, select, textarea { width: 100%; padding: 10px 14px; border: 2px solid #e2eee2; border-radius: 18px; font-size: 0.95rem; background: #fafffa; transition: 0.2s; }
+        input:focus, select:focus, textarea:focus { border-color: #2e7d32; outline: none; background: white; box-shadow: 0 0 0 4px rgba(46,125,50,0.08); }
+        .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media (max-width: 500px) { .row-2 { grid-template-columns: 1fr; } }
+        .btn { background: #2e7d32; border: none; color: white; font-weight: 600; padding: 12px 22px; border-radius: 40px; font-size: 1rem; cursor: pointer; transition: 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; margin-top: 14px; width: 100%; }
+        .btn:hover { background: #1f5a23; transform: scale(0.98); }
+        .btn-outline { background: transparent; border: 2px solid #2e7d32; color: #2e7d32; }
+        .btn-outline:hover { background: #e8f5e8; transform: scale(0.98); }
+        .table-wrapper { overflow-x: auto; border-radius: 24px; border: 1px solid #ecf3ec; margin: 18px 0 10px; background: #fafffa; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; min-width: 620px; }
+        th { text-align: left; padding: 14px 12px; background: #eaf3ea; color: #1a402a; font-weight: 600; white-space: nowrap; }
+        td { padding: 12px 10px; border-bottom: 1px solid #e2eee2; vertical-align: middle; }
+        .badge { background: #dff0df; padding: 4px 14px; border-radius: 40px; font-size: 0.75rem; font-weight: 600; color: #1a4a2a; display: inline-block; }
+        .badge-warning { background: #fff3d0; color: #8a6500; }
+        .badge-danger { background: #ffe6e0; color: #b13e2e; }
+        .img-thumb { width: 52px; height: 52px; object-fit: cover; border-radius: 16px; background: #f0f8f0; border: 2px solid #d4e8d4; transition: 0.2s; }
+        .img-thumb:hover { transform: scale(1.1); }
+        .action-group { display: flex; gap: 6px; flex-wrap: wrap; }
+        .btn-icon { background: transparent; border: none; font-size: 1.1rem; cursor: pointer; padding: 4px 8px; border-radius: 30px; transition: 0.1s; }
+        .btn-icon.edit { color: #1f6b3a; background: #e4f2e4; }
+        .btn-icon.delete { color: #b13e2e; background: #fce8e4; }
+        .btn-icon.stock { color: #a57c00; background: #fff3d0; }
+        .btn-icon:hover { transform: scale(0.92); opacity: 0.8; }
+        .file-upload { border: 2px dashed #b8d9b8; border-radius: 30px; padding: 12px 16px; background: #f6fcf6; text-align: center; margin: 6px 0 10px; cursor: pointer; transition: 0.2s; }
+        .file-upload:hover { background: #ecf9ec; border-color: #2e7d32; }
+        .file-upload i { font-size: 1.4rem; color: #2e7d32; margin-right: 8px; }
+        #imagePreview { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 4px; }
+        .preview-item { position: relative; width: 70px; height: 70px; border-radius: 18px; border: 2px solid #d4e8d4; overflow: hidden; background: #f0f8f0; }
+        .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+        .preview-item .remove { position: absolute; top: -6px; right: -6px; background: #b13e2e; color: white; border-radius: 30px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; border: 2px solid white; }
+        .toast { position: fixed; bottom: 30px; right: 30px; background: #1f3a2a; color: white; padding: 14px 28px; border-radius: 60px; font-weight: 500; box-shadow: 0 8px 24px rgba(0,0,0,0.2); display: none; align-items: center; gap: 12px; z-index: 999; max-width: 380px; }
+        .toast.show { display: flex; }
+        .modal-overlay { position: fixed; top:0;left:0;width:100%;height:100%; background: rgba(0,20,10,0.5); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .modal-overlay.active { display: flex; }
+        .modal-box { background: white; max-width: 640px; width: 100%; max-height: 90vh; overflow-y: auto; border-radius: 40px; padding: 30px 32px; box-shadow: 0 30px 60px rgba(0,0,0,0.2); }
+        .modal-box h2 { margin-bottom: 18px; color: #0a2e1f; }
+        .modal-actions { display: flex; gap: 14px; margin-top: 24px; }
+        .modal-actions .btn { width: auto; padding: 10px 28px; }
+        @media (max-width: 600px) { .app { padding: 16px; } .modal-box { padding: 20px; } }
     </style>
 </head>
 <body>
-<div class="header">
-    <h1>🌿 Admin <span>Dashboard</span></h1>
-    <div>
-        <span id="lowStockAlert" style="background:#e74c3c;color:white;padding:4px 12px;border-radius:20px;font-size:12px;display:none;margin-right:10px;">⚠️ Low Stock!</span>
-        <button class="btn btn-outline" onclick="loadAll()">🔄 Refresh</button>
-    </div>
-</div>
+<div class="app">
+    <h1><i class="fas fa-seedling"></i> Pro Stock & Item Manager</h1>
+    <div class="sub"><i class="fas fa-store-alt" style="margin-right: 10px;"></i> Vegetable + Grocery · Shop wise · Party wise · Item wise stock · Image upload · <strong>Flask API Connected</strong></div>
 
-<div class="stats" id="stats">
-    <div class="stat-card"><div class="number" id="totalOrders">0</div><div class="label">Total Orders</div></div>
-    <div class="stat-card"><div class="number" id="newOrders">0</div><div class="label">New Orders</div></div>
-    <div class="stat-card"><div class="number" id="deliveredOrders">0</div><div class="label">Delivered</div></div>
-    <div class="stat-card"><div class="number" id="totalSales">₹0</div><div class="label">Total Sales</div></div>
-</div>
+    <!-- ===== ADD / EDIT FORM ===== -->
+    <div class="grid-2">
+        <div class="card">
+            <div class="card-title"><i class="fas fa-plus-circle"></i> Add / Edit Item</div>
+            <form id="itemForm">
+                <label><i class="fas fa-tag"></i> Item Name *</label>
+                <input type="text" id="itemName" placeholder="e.g. Potato" required>
 
-<div class="tabs">
-    <button class="tab active" onclick="showTab('orders')">📋 Orders</button>
-    <button class="tab" onclick="showTab('products')">🥬 Products</button>
-    <button class="tab" onclick="showTab('stock')">📦 Stock</button>
-    <button class="tab" onclick="showTab('add')">➕ Add Product</button>
-    <button class="tab" onclick="showTab('shops')">🏪 Shops</button>
-    <button class="tab" onclick="showTab('suppliers')">🏭 Suppliers</button>
-</div>
+                <label><i class="fas fa-language"></i> Name (বাংলা)</label>
+                <input type="text" id="itemNameBn" placeholder="আলু">
 
-<!-- Orders -->
-<div id="tab-orders" class="section"><h2>📋 Orders</h2><div id="ordersList"></div></div>
+                <div class="row-2">
+                    <div><label>Category</label>
+                        <select id="itemCategory">
+                            <option value="Vegetables">🥬 Vegetables</option>
+                            <option value="Grocery">🛒 Grocery</option>
+                            <option value="Fruits">🍎 Fruits</option>
+                        </select>
+                    </div>
+                    <div><label>Sub Category</label>
+                        <input type="text" id="itemSubCategory" placeholder="Roots / Grains">
+                    </div>
+                </div>
 
-<!-- Products -->
-<div id="tab-products" class="section" style="display:none;">
-    <h2>🥬 Products</h2>
-    <div class="table-wrap"><table><thead><tr>
-        <th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>MRP</th><th>Stock</th><th>Discount</th><th>Shop</th><th>Status</th><th>Actions</th>
-    </tr></thead><tbody id="productList"></tbody></table></div>
-</div>
+                <div class="row-2">
+                    <div><label>Price (₹)</label><input type="number" id="itemPrice" step="0.01" placeholder="30"></div>
+                    <div><label>MRP (₹)</label><input type="number" id="itemMrp" step="0.01" placeholder="40"></div>
+                </div>
+                <div class="row-2">
+                    <div><label>Unit</label><input type="text" id="itemUnit" placeholder="KG / Piece"></div>
+                    <div><label>Discount %</label><input type="number" id="itemDiscount" step="0.1" placeholder="10"></div>
+                </div>
 
-<!-- Stock -->
-<div id="tab-stock" class="section" style="display:none;"><h2>📦 Stock Management</h2><div id="stockList"></div></div>
+                <div class="row-2">
+                    <div><label>Stock (Qty)</label><input type="number" id="itemStock" placeholder="100"></div>
+                    <div><label>Min Stock Alert</label><input type="number" id="itemMinStock" placeholder="20"></div>
+                </div>
 
-<!-- Add Product -->
-<div id="tab-add" class="section" style="display:none;">
-    <h2>➕ Add Product</h2>
-    <div style="margin-bottom:12px;">
-        <label>Image URL:</label>
-        <input type="text" id="pImage" placeholder="https://example.com/image.jpg" style="width:100%;padding:8px;border:2px solid #ddd;border-radius:10px;margin-top:4px;" />
-    </div>
-    <div class="form-grid">
-        <input type="text" id="pName" placeholder="Name" />
-        <input type="text" id="pNameBn" placeholder="Name (বাংলা)" />
-        <select id="pCategory"><option value="Vegetables">Vegetables</option><option value="Grocery">Grocery</option><option value="Fruits">Fruits</option></select>
-        <input type="text" id="pSubCategory" placeholder="Sub Category" />
-        <input type="number" id="pPrice" placeholder="Price" />
-        <input type="number" id="pMrp" placeholder="MRP" />
-        <input type="text" id="pUnit" placeholder="Unit (KG/Piece)" />
-        <input type="number" id="pStock" placeholder="Stock" />
-        <input type="number" id="pMinStock" placeholder="Min Stock Alert" />
-        <input type="number" id="pDiscount" placeholder="Discount %" />
-        <select id="pShopId"></select>
-        <select id="pSupplierId"><option value="">Select Supplier</option></select>
-    </div>
-    <button class="btn btn-primary" onclick="addProduct()" style="margin-top:10px;">➕ Add Product</button>
-</div>
+                <div class="row-2">
+                    <div><label>Shop</label>
+                        <select id="itemShop">
+                            <option value="shop1">🏪 Main Shop</option>
+                            <option value="shop2">🏪 Branch 1</option>
+                        </select>
+                    </div>
+                    <div><label>Supplier / Party</label>
+                        <select id="itemSupplier">
+                            <option value="sup1">🌾 Green Farms</option>
+                            <option value="sup2">🌾 Fresh Supply Co.</option>
+                            <option value="">+ Add new (from Suppliers tab)</option>
+                        </select>
+                    </div>
+                </div>
 
-<!-- Shops -->
-<div id="tab-shops" class="section" style="display:none;">
-    <h2>🏪 Shop Management</h2>
-    <div class="form-grid" style="margin-bottom:12px;">
-        <input type="text" id="shopName" placeholder="Shop Name" />
-        <input type="text" id="shopAddress" placeholder="Address" />
-        <input type="text" id="shopPhone" placeholder="Phone" />
-    </div>
-    <button class="btn btn-primary" onclick="addShop()">➕ Add Shop</button>
-    <div id="shopList" style="margin-top:12px;"></div>
-</div>
+                <label><i class="fas fa-image"></i> Image URL or Upload</label>
+                <div class="file-upload" id="imageUploadTrigger">
+                    <i class="fas fa-cloud-upload-alt"></i> Click to upload image (JPEG/PNG)
+                    <input type="file" id="imageFileInput" accept="image/*" style="display:none">
+                </div>
+                <input type="text" id="itemImage" placeholder="https://example.com/veg.jpg" style="margin-top:6px;">
 
-<!-- Suppliers -->
-<div id="tab-suppliers" class="section" style="display:none;">
-    <h2>🏭 Supplier Management</h2>
-    <div class="form-grid" style="margin-bottom:12px;">
-        <input type="text" id="supName" placeholder="Supplier Name" />
-        <input type="text" id="supPhone" placeholder="Phone" />
-        <input type="text" id="supAddress" placeholder="Address" />
-    </div>
-    <button class="btn btn-primary" onclick="addSupplier()">➕ Add Supplier</button>
-    <div id="supplierList" style="margin-top:12px;"></div>
-</div>
+                <div id="imagePreview"></div>
 
-<!-- Stock Modal -->
-<div class="modal" id="stockModal">
-    <div class="modal-box">
-        <div class="modal-header"><h2>📦 Update Stock</h2><button class="modal-close" onclick="closeStockModal()">✕</button></div>
-        <div class="modal-body">
-            <p><strong id="stockProductName"></strong></p>
-            <p>Current Stock: <span id="stockCurrent"></span></p>
-            <div class="form-grid" style="margin-top:10px;">
-                <input type="number" id="stockNew" placeholder="New Stock" />
-                <input type="number" id="stockMin" placeholder="Min Stock Alert" />
+                <input type="hidden" id="editId" value="">
+                <div style="display:flex; gap:12px; margin-top:16px;">
+                    <button type="button" class="btn" id="saveItemBtn"><i class="fas fa-save"></i> Save Item</button>
+                    <button type="button" class="btn btn-outline" id="clearFormBtn"><i class="fas fa-undo-alt"></i> Clear</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- ===== QUICK STOCK / SUPPLIER VIEW ===== -->
+        <div class="card">
+            <div class="card-title"><i class="fas fa-boxes"></i> Supplier & Stock Overview</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+                <button class="btn btn-outline" style="flex:1;" onclick="filterBySupplier('sup1')"><i class="fas fa-tractor"></i> Green Farms</button>
+                <button class="btn btn-outline" style="flex:1;" onclick="filterBySupplier('sup2')"><i class="fas fa-tractor"></i> Fresh Supply</button>
+                <button class="btn btn-outline" style="flex:1;" onclick="filterBySupplier('all')"><i class="fas fa-list-ul"></i> All</button>
+            </div>
+            <div id="supplierStockSummary" style="font-size:0.9rem; background:#f6fcf6; border-radius:20px; padding:10px 14px;">
+                <span class="badge"><i class="fas fa-box"></i> Total items: <span id="totalItemsCount">0</span></span>
+                <span class="badge badge-warning" style="margin-left:8px;"><i class="fas fa-exclamation-triangle"></i> Low stock: <span id="lowStockCount">0</span></span>
+            </div>
+            <div style="margin-top:10px; max-height:260px; overflow-y:auto; border-radius:20px; background:#fafffa; padding:4px 4px 4px 12px; border:1px solid #ecf3ec;">
+                <div id="supplierStockList"><span style="color:#6a7a6a;">Loading items…</span></div>
             </div>
         </div>
-        <div class="modal-footer">
-            <button class="btn btn-danger" onclick="closeStockModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="saveStock()">💾 Update</button>
+    </div>
+
+    <!-- ===== ITEM TABLE ===== -->
+    <div class="card" style="margin-top:8px;">
+        <div class="card-title"><i class="fas fa-list-ul"></i> All Items (Modify / Delete / Stock)</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                <tr>
+                    <th>Image</th><th>Name</th><th>Category</th><th>Shop</th><th>Supplier</th>
+                    <th>Price</th><th>MRP</th><th>Stock</th><th>Min</th><th>Actions</th>
+                </tr>
+                </thead>
+                <tbody id="itemTableBody">
+                <tr><td colspan="10" style="text-align:center; padding:30px; color:#6a8a6a;">Loading items…</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+
+<!-- ===== EDIT MODAL ===== -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-box">
+        <h2><i class="fas fa-edit"></i> Edit Item</h2>
+        <form id="editForm">
+            <input type="hidden" id="editIdField">
+            <label>Name *</label><input type="text" id="editName" required>
+            <label>Name (বাংলা)</label><input type="text" id="editNameBn">
+            <div class="row-2">
+                <div><label>Category</label><select id="editCategory"><option>Vegetables</option><option>Grocery</option><option>Fruits</option></select></div>
+                <div><label>Sub Category</label><input type="text" id="editSubCategory"></div>
+            </div>
+            <div class="row-2">
+                <div><label>Price (₹)</label><input type="number" id="editPrice" step="0.01"></div>
+                <div><label>MRP (₹)</label><input type="number" id="editMrp" step="0.01"></div>
+            </div>
+            <div class="row-2">
+                <div><label>Unit</label><input type="text" id="editUnit"></div>
+                <div><label>Discount %</label><input type="number" id="editDiscount" step="0.1"></div>
+            </div>
+            <div class="row-2">
+                <div><label>Stock</label><input type="number" id="editStock"></div>
+                <div><label>Min Stock</label><input type="number" id="editMinStock"></div>
+            </div>
+            <div class="row-2">
+                <div><label>Shop</label><select id="editShop"><option value="shop1">Main Shop</option><option value="shop2">Branch 1</option></select></div>
+                <div><label>Supplier</label><select id="editSupplier"><option value="sup1">Green Farms</option><option value="sup2">Fresh Supply</option></select></div>
+            </div>
+            <label>Image URL</label><input type="text" id="editImage">
+            <div class="modal-actions">
+                <button type="button" class="btn" id="updateItemBtn"><i class="fas fa-save"></i> Update</button>
+                <button type="button" class="btn btn-outline" id="closeEditModalBtn"><i class="fas fa-times"></i> Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"><i class="fas fa-check-circle" style="color:#b3e0b3;"></i> <span id="toastMsg">Done</span></div>
 
 <script>
-let allProducts = [], allOrders = [], allShops = [], allSuppliers = [];
-let editingStockId = null;
+    // ============================================================
+    //  FULL FLASK API INTEGRATION
+    // ============================================================
+    const API_BASE = window.location.origin;
 
-function showTab(tab) {
-    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-    document.querySelectorAll('.section').forEach(s=>s.style.display='none');
-    document.getElementById('tab-'+tab).style.display='block';
-    document.querySelector(`.tab[onclick="showTab('${tab}')"]`).classList.add('active');
-    if(tab==='products') loadProducts();
-    if(tab==='stock') loadStock();
-    if(tab==='shops') loadShops();
-    if(tab==='suppliers') loadSuppliers();
-}
+    // ---------- GLOBAL STATE ----------
+    let items = [];
+    let currentFilter = 'all';
 
-function loadAll() {
-    loadStats(); loadOrders(); loadProducts(); loadStock(); loadShops(); loadSuppliers(); checkLowStock();
-}
+    // DOM refs
+    const itemName = document.getElementById('itemName');
+    const itemNameBn = document.getElementById('itemNameBn');
+    const itemCategory = document.getElementById('itemCategory');
+    const itemSubCategory = document.getElementById('itemSubCategory');
+    const itemPrice = document.getElementById('itemPrice');
+    const itemMrp = document.getElementById('itemMrp');
+    const itemUnit = document.getElementById('itemUnit');
+    const itemDiscount = document.getElementById('itemDiscount');
+    const itemStock = document.getElementById('itemStock');
+    const itemMinStock = document.getElementById('itemMinStock');
+    const itemShop = document.getElementById('itemShop');
+    const itemSupplier = document.getElementById('itemSupplier');
+    const itemImage = document.getElementById('itemImage');
+    const imagePreview = document.getElementById('imagePreview');
+    const itemTableBody = document.getElementById('itemTableBody');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toastMsg');
 
-function loadStats() {
-    fetch('/api/orders/stats').then(r=>r.json()).then(d=>{
-        document.getElementById('totalOrders').textContent=d.total_orders||0;
-        document.getElementById('newOrders').textContent=d.new_orders||0;
-        document.getElementById('deliveredOrders').textContent=d.delivered_orders||0;
-        document.getElementById('totalSales').textContent='₹'+(d.total_sales||0);
+    // ---------- TOAST ----------
+    function showToast(msg) {
+        toastMsg.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2800);
+    }
+
+    // ---------- IMAGE UPLOAD (convert to base64) ----------
+    document.getElementById('imageUploadTrigger').addEventListener('click', function() {
+        document.getElementById('imageFileInput').click();
     });
-}
-
-function loadOrders() {
-    fetch('/api/orders').then(r=>r.json()).then(d=>{
-        const list=document.getElementById('ordersList');
-        if(!d.length){list.innerHTML='<p style="color:#888;">📭 No orders</p>';return;}
-        list.innerHTML=d.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,20).map(o=>`
-            <div style="border-bottom:1px solid #eee;padding:10px 0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-                <div><strong>#${o.order_id}</strong> <span class="badge badge-${o.status.toLowerCase()}">${o.status}</span> ${o.customer} | ₹${o.total}</div>
-                <div>
-                    ${o.status==='NEW'?`<button class="btn btn-info btn-sm" onclick="updateStatus('${o.order_id}','CONFIRMED')">Confirm</button>`:''}
-                    ${o.status==='CONFIRMED'?`<button class="btn btn-success btn-sm" onclick="updateStatus('${o.order_id}','DELIVERED')">Deliver</button>`:''}
-                    ${o.status!=='DELIVERED'&&o.status!=='CANCELLED'?`<button class="btn btn-danger btn-sm" onclick="updateStatus('${o.order_id}','CANCELLED')">Cancel</button>`:''}
-                </div>
-            </div>
-        `).join('');
+    document.getElementById('imageFileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            const base64 = ev.target.result;
+            itemImage.value = base64;
+            showPreview(base64);
+            showToast('✅ Image uploaded successfully!');
+        };
+        reader.readAsDataURL(file);
+        this.value = '';
     });
-}
 
-function loadProducts() {
-    fetch('/api/products').then(r=>r.json()).then(d=>{
-        allProducts=d;
-        document.getElementById('productList').innerHTML=d.map(p=>`
+    function showPreview(src) {
+        imagePreview.innerHTML = `<div class="preview-item"><img src="${src}" /><span class="remove" onclick="removeImage()">✕</span></div>`;
+    }
+    function removeImage() {
+        itemImage.value = '';
+        imagePreview.innerHTML = '';
+    }
+    function updatePreviewFromUrl(url) {
+        if (url && (url.startsWith('http') || url.startsWith('data:image'))) {
+            imagePreview.innerHTML = `<div class="preview-item"><img src="${url}" /><span class="remove" onclick="removeImage()">✕</span></div>`;
+        } else {
+            imagePreview.innerHTML = '';
+        }
+    }
+
+    // ---------- API CALLS ----------
+    async function fetchItems() {
+        try {
+            const resp = await fetch(`${API_BASE}/api/products`);
+            if (!resp.ok) throw new Error('Failed to fetch');
+            const data = await resp.json();
+            items = data;
+            renderAll();
+        } catch (err) {
+            console.error('Fetch error:', err);
+            showToast('⚠️ Could not load items from server');
+        }
+    }
+
+    async function addItemToAPI(item) {
+        try {
+            const resp = await fetch(`${API_BASE}/api/products`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            });
+            if (!resp.ok) throw new Error('Add failed');
+            const result = await resp.json();
+            showToast('✅ Item added successfully!');
+            await fetchItems();
+            return result;
+        } catch (err) {
+            console.error('Add error:', err);
+            showToast('❌ Failed to add item');
+        }
+    }
+
+    async function updateItemAPI(id, updated) {
+        try {
+            const resp = await fetch(`${API_BASE}/api/products/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updated)
+            });
+            if (!resp.ok) throw new Error('Update failed');
+            showToast('✅ Item updated!');
+            await fetchItems();
+        } catch (err) {
+            console.error('Update error:', err);
+            showToast('❌ Update failed');
+        }
+    }
+
+    async function deleteItemAPI(id) {
+        if (!confirm('Delete this item?')) return;
+        try {
+            const resp = await fetch(`${API_BASE}/api/products/${id}`, {
+                method: 'DELETE'
+            });
+            if (!resp.ok) throw new Error('Delete failed');
+            showToast('🗑️ Item deleted');
+            await fetchItems();
+        } catch (err) {
+            console.error('Delete error:', err);
+            showToast('❌ Delete failed');
+        }
+    }
+
+    async function updateStockAPI(id, newStock) {
+        try {
+            const resp = await fetch(`${API_BASE}/api/products/${id}/stock`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stock: newStock })
+            });
+            if (!resp.ok) throw new Error('Stock update failed');
+            showToast('📦 Stock updated');
+            await fetchItems();
+        } catch (err) {
+            console.error('Stock update error:', err);
+            showToast('❌ Stock update failed');
+        }
+    }
+
+    // ---------- RENDER ----------
+    function renderAll() {
+        renderTable();
+        renderSupplierStock();
+        updateStats();
+    }
+
+    function renderTable() {
+        if (!items.length) {
+            itemTableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:30px; color:#6a8a6a;">No items. Add your first product!</td></tr>`;
+            return;
+        }
+        let filtered = items;
+        if (currentFilter !== 'all') {
+            filtered = items.filter(i => i.supplier_id === currentFilter);
+        }
+        itemTableBody.innerHTML = filtered.map(item => `
             <tr>
-                <td><img src="${p.image||'https://via.placeholder.com/50'}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;" onerror="this.src='https://via.placeholder.com/50'" /></td>
-                <td>${p.name}<br><small style="color:#888;">${p.name_bn||''}</small></td>
-                <td>${p.category}</td>
-                <td>₹${p.price}</td>
-                <td><span style="text-decoration:line-through;color:#888;">₹${p.mrp||p.price}</span></td>
-                <td class="${p.stock<=p.min_stock?'stock-low':''}">${p.stock}</td>
-                <td>${p.discount||0}%</td>
-                <td>${p.shop_id||'-'}</td>
-                <td><span class="badge ${p.active!==false?'badge-active':'badge-inactive'}">${p.active!==false?'Active':'Inactive'}</span></td>
+                <td><img class="img-thumb" src="${item.image || 'https://via.placeholder.com/60/ccddcc?text=+'}" onerror="this.src='https://via.placeholder.com/60/ccddcc?text=+'"></td>
+                <td><strong>${item.name}</strong><br><small>${item.name_bn || ''}</small></td>
+                <td>${item.category || '-'}</td>
+                <td>${item.shop_id || '-'}</td>
+                <td>${item.supplier_id || '-'}</td>
+                <td>₹${item.price}</td>
+                <td><span style="text-decoration:line-through;color:#888;">₹${item.mrp}</span></td>
+                <td class="${item.stock <= item.min_stock ? 'badge-danger' : ''}" style="font-weight:600;">${item.stock}</td>
+                <td>${item.min_stock}</td>
                 <td>
-                    <button class="btn btn-warning btn-sm" onclick="toggleProduct(${p.id})">${p.active!==false?'🔴':'🟢'}</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteProduct(${p.id})">🗑️</button>
+                    <div class="action-group">
+                        <button class="btn-icon edit" onclick="openEditModal(${item.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon stock" onclick="quickStockUpdate(${item.id})"><i class="fas fa-box"></i></button>
+                        <button class="btn-icon delete" onclick="deleteItemAPI(${item.id})"><i class="fas fa-trash-alt"></i></button>
+                    </div>
                 </td>
             </tr>
         `).join('');
-    });
-}
+    }
 
-function loadStock() {
-    fetch('/api/products').then(r=>r.json()).then(d=>{
-        const low=d.filter(p=>p.stock<=p.min_stock&&p.active!==false);
-        let html='';
-        if(low.length){html+=`<div style="background:#fff3e0;padding:12px;border-radius:12px;margin-bottom:12px;border-left:4px solid #e74c3c;">
-            <h3 style="color:#e74c3c;">⚠️ Low Stock (${low.length})</h3>${low.map(p=>`
-                <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;">
-                    <span>${p.name}</span><span style="color:#e74c3c;font-weight:700;">${p.stock} (Min:${p.min_stock})</span>
-                    <button class="btn btn-primary btn-sm" onclick="openStockModal(${p.id})">Update</button>
-                </div>`).join('')}</div>`;
+    function renderSupplierStock() {
+        const container = document.getElementById('supplierStockList');
+        if (!items.length) {
+            container.innerHTML = '<span style="color:#6a7a6a;">No items</span>';
+            return;
         }
-        html+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">`;
-        d.filter(p=>p.active!==false).forEach(p=>{
-            const isLow=p.stock<=p.min_stock;
-            html+=`<div style="background:${isLow?'#fff3e0':'#f8faf8'};padding:12px;border-radius:12px;border-left:4px solid ${isLow?'#e74c3c':'#4CAF50'};">
-                <div style="font-weight:600;">${p.name}</div>
-                <div>Stock: <span style="font-weight:700;color:${isLow?'#e74c3c':'#2E7D32'};">${p.stock}</span> / ${p.unit}</div>
-                <div style="font-size:12px;color:#888;">Min: ${p.min_stock||10}</div>
-                <button class="btn btn-primary btn-sm" onclick="openStockModal(${p.id})" style="margin-top:6px;">📦 Update</button>
-            </div>`;
+        const grouped = {};
+        items.forEach(it => {
+            const key = it.supplier_id || 'unknown';
+            if (!grouped[key]) grouped[key] = { count: 0, stock: 0, items: [] };
+            grouped[key].count += 1;
+            grouped[key].stock += it.stock;
+            grouped[key].items.push(it);
         });
-        html+='</div>';
-        document.getElementById('stockList').innerHTML=html;
+        let html = '';
+        for (const [sup, data] of Object.entries(grouped)) {
+            const supName = sup === 'sup1' ? '🌾 Green Farms' : sup === 'sup2' ? '🌾 Fresh Supply' : sup;
+            html += `<div style="padding:6px 0; border-bottom:1px solid #eaf3ea;">
+                <strong>${supName}</strong> <span class="badge">${data.count} items</span> <span class="badge">📦 ${data.stock} qty</span>
+                <div style="font-size:0.75rem; color:#3e5a3e; margin-top:2px;">${data.items.map(i => `${i.name} (${i.stock})`).join(' • ')}</div>
+            </div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    function updateStats() {
+        document.getElementById('totalItemsCount').textContent = items.length;
+        const low = items.filter(i => i.stock <= i.min_stock).length;
+        document.getElementById('lowStockCount').textContent = low;
+    }
+
+    // ---------- FILTER ----------
+    function filterBySupplier(sup) {
+        currentFilter = sup;
+        renderTable();
+    }
+
+    // ---------- QUICK STOCK ----------
+    function quickStockUpdate(id) {
+        const item = items.find(i => i.id === id);
+        if (!item) return;
+        const newStock = prompt(`Update stock for ${item.name} (current: ${item.stock})`, item.stock);
+        if (newStock !== null && !isNaN(newStock) && Number(newStock) >= 0) {
+            updateStockAPI(id, Number(newStock));
+        }
+    }
+
+    // ---------- EDIT MODAL ----------
+    function openEditModal(id) {
+        const item = items.find(i => i.id === id);
+        if (!item) return;
+        document.getElementById('editIdField').value = id;
+        document.getElementById('editName').value = item.name || '';
+        document.getElementById('editNameBn').value = item.name_bn || '';
+        document.getElementById('editCategory').value = item.category || 'Vegetables';
+        document.getElementById('editSubCategory').value = item.sub_category || '';
+        document.getElementById('editPrice').value = item.price || '';
+        document.getElementById('editMrp').value = item.mrp || '';
+        document.getElementById('editUnit').value = item.unit || '';
+        document.getElementById('editDiscount').value = item.discount || '';
+        document.getElementById('editStock').value = item.stock || '';
+        document.getElementById('editMinStock').value = item.min_stock || '';
+        document.getElementById('editShop').value = item.shop_id || 'shop1';
+        document.getElementById('editSupplier').value = item.supplier_id || 'sup1';
+        document.getElementById('editImage').value = item.image || '';
+        document.getElementById('editModal').classList.add('active');
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').classList.remove('active');
+    }
+
+    document.getElementById('updateItemBtn').addEventListener('click', function() {
+        const id = Number(document.getElementById('editIdField').value);
+        const updated = {
+            name: document.getElementById('editName').value.trim(),
+            name_bn: document.getElementById('editNameBn').value.trim(),
+            category: document.getElementById('editCategory').value,
+            sub_category: document.getElementById('editSubCategory').value.trim(),
+            price: Number(document.getElementById('editPrice').value) || 0,
+            mrp: Number(document.getElementById('editMrp').value) || 0,
+            unit: document.getElementById('editUnit').value.trim(),
+            discount: Number(document.getElementById('editDiscount').value) || 0,
+            stock: Number(document.getElementById('editStock').value) || 0,
+            min_stock: Number(document.getElementById('editMinStock').value) || 0,
+            shop_id: document.getElementById('editShop').value,
+            supplier_id: document.getElementById('editSupplier').value,
+            image: document.getElementById('editImage').value.trim()
+        };
+        if (!updated.name) { showToast('⚠️ Name is required'); return; }
+        updateItemAPI(id, updated);
+        closeEditModal();
     });
-}
 
-function checkLowStock() {
-    fetch('/api/products/low-stock').then(r=>r.json()).then(d=>{
-        const alert=document.getElementById('lowStockAlert');
-        if(d.length){alert.style.display='inline-block';alert.textContent=`⚠️ ${d.length} Low Stock!`;}
-        else alert.style.display='none';
+    document.getElementById('closeEditModalBtn').addEventListener('click', closeEditModal);
+    document.getElementById('editModal').addEventListener('click', function(e) {
+        if (e.target === this) closeEditModal();
     });
-}
 
-function loadShops() {
-    fetch('/api/shops').then(r=>r.json()).then(d=>{
-        allShops=d;
-        const sel=document.getElementById('pShopId');
-        sel.innerHTML=d.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-        document.getElementById('shopList').innerHTML=d.map(s=>`
-            <div style="background:#f8faf8;padding:10px 14px;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                <div><strong>${s.name}</strong></div>
-                <div style="color:#555;font-size:13px;">📍 ${s.address||''} | 📱 ${s.phone||''}</div>
-            </div>
-        `).join('');
+    // ---------- SAVE (Add) ----------
+    document.getElementById('saveItemBtn').addEventListener('click', function() {
+        const name = itemName.value.trim();
+        if (!name) { showToast('⚠️ Please enter item name'); return; }
+        const newItem = {
+            name: name,
+            name_bn: itemNameBn.value.trim(),
+            category: itemCategory.value,
+            sub_category: itemSubCategory.value.trim(),
+            price: Number(itemPrice.value) || 0,
+            mrp: Number(itemMrp.value) || 0,
+            unit: itemUnit.value.trim() || 'KG',
+            discount: Number(itemDiscount.value) || 0,
+            stock: Number(itemStock.value) || 0,
+            min_stock: Number(itemMinStock.value) || 10,
+            shop_id: itemShop.value,
+            supplier_id: itemSupplier.value,
+            image: itemImage.value.trim() || 'https://via.placeholder.com/60/ccddcc?text=+'
+        };
+        addItemToAPI(newItem);
+        // clear form
+        itemName.value = '';
+        itemNameBn.value = '';
+        itemSubCategory.value = '';
+        itemPrice.value = '';
+        itemMrp.value = '';
+        itemUnit.value = '';
+        itemDiscount.value = '';
+        itemStock.value = '';
+        itemMinStock.value = '';
+        itemImage.value = '';
+        imagePreview.innerHTML = '';
     });
-}
 
-function loadSuppliers() {
-    fetch('/api/suppliers').then(r=>r.json()).then(d=>{
-        allSuppliers=d;
-        const sel=document.getElementById('pSupplierId');
-        sel.innerHTML=`<option value="">Select Supplier</option>`+d.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-        document.getElementById('supplierList').innerHTML=d.map(s=>`
-            <div style="background:#f8faf8;padding:10px 14px;border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                <div><strong>${s.name}</strong></div>
-                <div style="color:#555;font-size:13px;">📍 ${s.address||''} | 📱 ${s.phone||''}</div>
-            </div>
-        `).join('');
+    document.getElementById('clearFormBtn').addEventListener('click', function() {
+        itemName.value = '';
+        itemNameBn.value = '';
+        itemSubCategory.value = '';
+        itemPrice.value = '';
+        itemMrp.value = '';
+        itemUnit.value = '';
+        itemDiscount.value = '';
+        itemStock.value = '';
+        itemMinStock.value = '';
+        itemImage.value = '';
+        imagePreview.innerHTML = '';
     });
-}
 
-function openStockModal(id) {
-    const p=allProducts.find(x=>x.id===id);
-    if(!p)return;
-    editingStockId=id;
-    document.getElementById('stockProductName').textContent=p.name;
-    document.getElementById('stockCurrent').textContent=p.stock;
-    document.getElementById('stockNew').value=p.stock;
-    document.getElementById('stockMin').value=p.min_stock||10;
-    document.getElementById('stockModal').classList.add('active');
-}
-
-function closeStockModal() {
-    document.getElementById('stockModal').classList.remove('active');
-    editingStockId=null;
-}
-
-function saveStock() {
-    if(!editingStockId)return;
-    const stock=parseInt(document.getElementById('stockNew').value)||0;
-    const minStock=parseInt(document.getElementById('stockMin').value)||10;
-    const p=allProducts.find(x=>x.id===editingStockId);
-    if(p)p.min_stock=minStock;
-    fetch(`/api/products/${editingStockId}/stock`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({stock})})
-    .then(()=>{fetch(`/api/products/${editingStockId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});})
-    .then(()=>{alert('✅ Stock updated!');closeStockModal();loadAll();});
-}
-
-function updateStatus(id,status){
-    fetch('/api/order/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:id,status})})
-    .then(()=>loadAll());
-}
-
-function toggleProduct(id){
-    fetch(`/api/products/${id}/toggle`,{method:'PUT'}).then(()=>loadProducts());
-}
-
-function deleteProduct(id){
-    if(!confirm('Delete?'))return;
-    fetch(`/api/products/${id}`,{method:'DELETE'}).then(()=>loadProducts());
-}
-
-function addProduct(){
-    const data={
-        name:document.getElementById('pName').value,
-        name_bn:document.getElementById('pNameBn').value,
-        category:document.getElementById('pCategory').value,
-        sub_category:document.getElementById('pSubCategory').value,
-        price:parseFloat(document.getElementById('pPrice').value)||0,
-        mrp:parseFloat(document.getElementById('pMrp').value)||0,
-        unit:document.getElementById('pUnit').value||'KG',
-        stock:parseInt(document.getElementById('pStock').value)||0,
-        min_stock:parseInt(document.getElementById('pMinStock').value)||10,
-        discount:parseFloat(document.getElementById('pDiscount').value)||0,
-        image:document.getElementById('pImage').value||'',
-        shop_id:document.getElementById('pShopId').value||'shop1',
-        supplier_id:document.getElementById('pSupplierId').value||'',
-        active:true
-    };
-    fetch('/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
-    .then(()=>{alert('✅ Product added!');loadAll();});
-}
-
-function addShop(){
-    const name=document.getElementById('shopName').value;
-    if(!name){alert('Enter shop name');return;}
-    fetch('/api/shops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        name,address:document.getElementById('shopAddress').value,phone:document.getElementById('shopPhone').value
-    })}).then(()=>{alert('✅ Shop added!');document.getElementById('shopName').value='';document.getElementById('shopAddress').value='';document.getElementById('shopPhone').value='';loadShops();});
-}
-
-function addSupplier(){
-    const name=document.getElementById('supName').value;
-    if(!name){alert('Enter supplier name');return;}
-    fetch('/api/suppliers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        name,phone:document.getElementById('supPhone').value,address:document.getElementById('supAddress').value
-    })}).then(()=>{alert('✅ Supplier added!');document.getElementById('supName').value='';document.getElementById('supPhone').value='';document.getElementById('supAddress').value='';loadSuppliers();});
-}
-
-document.getElementById('stockModal').addEventListener('click',function(e){if(e.target===this)closeStockModal();});
-loadAll();
-setInterval(loadAll,30000);
+    // ---------- INIT ----------
+    fetchItems();
 </script>
 </body>
 </html>
     '''
-    return html
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
