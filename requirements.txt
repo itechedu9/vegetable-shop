@@ -1,7 +1,3 @@
 Flask
 Flask-CORS
-<<<<<<< HEAD
 psycopg2-binary
-=======
-psycopg2-binary
->>>>>>> 7d13bcaa151261ebb5bf7d5f90b456539cd2d10a
