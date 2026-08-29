@@ -111,7 +111,6 @@ def admin():
             .btn-edit { background: #2196F3; }
             .btn-edit:hover { background: #0b7dda; }
             .btn-sm { padding: 4px 10px; font-size: 12px; margin: 2px; }
-            .status { color: #2E7D32; font-weight: 600; }
         </style>
     </head>
     <body>
@@ -126,7 +125,7 @@ def admin():
             </div>
         </div>
         <div class="card">
-            <h3>📦 Products <span class="status" id="count"></span></h3>
+            <h3>📦 Products</h3>
             <div style="overflow-x:auto;">
                 <table>
                     <thead><tr><th>Name</th><th>Price</th><th>Stock</th><th>Actions</th></tr></thead>
@@ -144,10 +143,8 @@ def admin():
                         const list = document.getElementById('productList');
                         if (data.length === 0) {
                             list.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;">No products yet</td></tr>';
-                            document.getElementById('count').textContent = '(0)';
                             return;
                         }
-                        document.getElementById('count').textContent = `(${data.length})`;
                         list.innerHTML = data.map(p => `
                             <tr>
                                 <td><strong>${p.name}</strong></td>
@@ -206,7 +203,6 @@ def admin():
                 }).then(() => loadProducts());
             }
 
-            // Auto refresh every 30 seconds
             loadProducts();
             setInterval(loadProducts, 30000);
         </script>
