@@ -4,7 +4,6 @@ import os
 import psycopg2
 import psycopg2.extras
 from datetime import datetime
-import json
 
 app = Flask(__name__)
 CORS(app)
@@ -12,19 +11,18 @@ CORS(app)
 # ===== ডাটাবেস সংযোগ =====
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-def get_db_connection():
+def get_db():
     if not DATABASE_URL:
-        print("⚠️ DATABASE_URL not set! Using in-memory fallback.")
+        print("⚠️ DATABASE_URL not set!")
         return None
     try:
-        conn = psycopg2.connect(DATABASE_URL)
-        return conn
+        return psycopg2.connect(DATABASE_URL)
     except Exception as e:
-        print(f"⚠️ Database connection error: {e}")
+        print(f"⚠️ Connection error: {e}")
         return None
 
-def execute_query(query, params=None, fetch=False):
-    conn = get_db_connection()
+def run_query(query, params=None, fetch=False):
+    conn = get_db()
     if not conn:
         return None if not fetch else []
     try:
@@ -47,96 +45,35 @@ def execute_query(query, params=None, fetch=False):
             pass
         return None if not fetch else []
 
-# ===== ইনিশিয়াল ডাটাবেস সেটআপ =====
-def init_db():
-    # Shops
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS shops (
-            id VARCHAR(20) PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            address TEXT,
-            phone VARCHAR(20)
-        )
-    """)
-    # Suppliers
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS suppliers (
-            id VARCHAR(20) PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            phone VARCHAR(20),
-            address TEXT
-        )
-    """)
-    # Products
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS products (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(100) NOT NULL,
-            name_bn VARCHAR(100),
-            category VARCHAR(50),
-            sub_category VARCHAR(50),
-            price DECIMAL(10,2) DEFAULT 0,
-            mrp DECIMAL(10,2) DEFAULT 0,
-            unit VARCHAR(20),
-            stock INTEGER DEFAULT 0,
-            min_stock INTEGER DEFAULT 10,
-            discount DECIMAL(5,2) DEFAULT 0,
-            image TEXT,
-            shop_id VARCHAR(20),
-            supplier_id VARCHAR(20),
-            active BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    # Orders
-    execute_query("""
-        CREATE TABLE IF NOT EXISTS orders (
-            id SERIAL PRIMARY KEY,
-            order_id VARCHAR(50) UNIQUE NOT NULL,
-            customer VARCHAR(100),
-            phone VARCHAR(20),
-            address TEXT,
-            items JSONB,
-            total DECIMAL(10,2),
-            status VARCHAR(20),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
 # ===== API রাউট =====
 @app.route('/')
 def home():
-    return jsonify({'message': '🌿 Vegetable & Grocery Shop API', 'status': 'running', 'version': '4.0 (DB)'})
+    return jsonify({'message': '🌿 API is running!', 'status': 'ok'})
 
 @app.route('/api/products')
 def get_products():
-    result = execute_query("SELECT * FROM products ORDER BY id", fetch=True)
-    if result is None:
+    data = run_query("SELECT * FROM products ORDER BY id", fetch=True)
+    if data is None:
         return jsonify([])
-    return jsonify([dict(row) for row in result])
-
-@app.route('/api/products/low-stock')
-def get_low_stock():
-    result = execute_query("SELECT * FROM products WHERE stock <= min_stock AND active = TRUE ORDER BY id", fetch=True)
-    if result is None:
-        return jsonify([])
-    return jsonify([dict(row) for row in result])
+    return jsonify([dict(row) for row in data])
 
 @app.route('/api/products', methods=['POST'])
 def add_product():
     data = request.json
     try:
-        execute_query("""
-            INSERT INTO products (name, name_bn, category, sub_category, price, mrp, unit, stock, min_stock, discount, image, shop_id, supplier_id, active)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            data.get('name'), data.get('name_bn', ''), data.get('category', 'Vegetables'),
-            data.get('sub_category', ''), float(data.get('price', 0)), float(data.get('mrp', 0)),
-            data.get('unit', 'KG'), int(data.get('stock', 0)), int(data.get('min_stock', 10)),
-            float(data.get('discount', 0)), data.get('image', ''), data.get('shop_id', 'shop1'),
-            data.get('supplier_id', ''), data.get('active', True)
-        ))
-        return jsonify({'success': True, 'message': 'Product added successfully'})
+        run_query(
+            "INSERT INTO products (name, price, stock) VALUES (%s, %s, %s)",
+            (data.get('name'), float(data.get('price', 0)), int(data.get('stock', 0)))
+        )
+        return jsonify({'success': True, 'message': 'Product added'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/products/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    try:
+        run_query("DELETE FROM products WHERE id=%s", (product_id,))
+        return jsonify({'success': True, 'message': 'Product deleted'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -144,135 +81,139 @@ def add_product():
 def update_product(product_id):
     data = request.json
     try:
-        execute_query("""
-            UPDATE products SET 
-                name=%s, name_bn=%s, category=%s, sub_category=%s, price=%s, mrp=%s, unit=%s, 
-                stock=%s, min_stock=%s, discount=%s, image=%s, shop_id=%s, supplier_id=%s, active=%s 
-            WHERE id=%s
-        """, (
-            data.get('name'), data.get('name_bn', ''), data.get('category'), data.get('sub_category', ''),
-            float(data.get('price', 0)), float(data.get('mrp', 0)), data.get('unit', 'KG'),
-            int(data.get('stock', 0)), int(data.get('min_stock', 10)), float(data.get('discount', 0)),
-            data.get('image', ''), data.get('shop_id', 'shop1'), data.get('supplier_id', ''),
-            data.get('active', True), product_id
-        ))
-        return jsonify({'success': True, 'message': 'Product updated successfully'})
+        run_query(
+            "UPDATE products SET name=%s, price=%s, stock=%s WHERE id=%s",
+            (data.get('name'), float(data.get('price', 0)), int(data.get('stock', 0)), product_id)
+        )
+        return jsonify({'success': True, 'message': 'Product updated'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/products/<int:product_id>/stock', methods=['PUT'])
-def update_stock(product_id):
-    data = request.json
-    try:
-        execute_query("UPDATE products SET stock=%s WHERE id=%s", (int(data.get('stock', 0)), product_id))
-        return jsonify({'success': True, 'message': 'Stock updated successfully'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/products/<int:product_id>/toggle', methods=['PUT'])
-def toggle_product(product_id):
-    try:
-        result = execute_query("SELECT active FROM products WHERE id=%s", (product_id,), fetch=True)
-        if result:
-            current = result[0][0]
-            execute_query("UPDATE products SET active=%s WHERE id=%s", (not current, product_id))
-            return jsonify({'success': True})
-        return jsonify({'error': 'Product not found'}), 404
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/products/<int:product_id>', methods=['DELETE'])
-def delete_product(product_id):
-    try:
-        execute_query("DELETE FROM products WHERE id=%s", (product_id,))
-        return jsonify({'success': True, 'message': 'Product deleted successfully'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/shops')
-def get_shops():
-    result = execute_query("SELECT * FROM shops ORDER BY id", fetch=True)
-    if result is None:
-        return jsonify([])
-    return jsonify([dict(row) for row in result])
-
-@app.route('/api/suppliers')
-def get_suppliers():
-    result = execute_query("SELECT * FROM suppliers ORDER BY id", fetch=True)
-    if result is None:
-        return jsonify([])
-    return jsonify([dict(row) for row in result])
-
-# ---------- অর্ডার (ইন-মেমরি, পরে ডাটাবেসে স্থানান্তর) ----------
-orders = []
-order_counter = 1
-
-@app.route('/api/orders')
-def get_orders():
-    return jsonify(orders)
-
-@app.route('/api/orders/stats')
-def get_stats():
-    total = len(orders)
-    new = len([o for o in orders if o.get('status') == 'NEW'])
-    delivered = len([o for o in orders if o.get('status') == 'DELIVERED'])
-    total_sales = sum([o.get('total', 0) for o in orders if o.get('status') != 'CANCELLED'])
-    return jsonify({'total_orders': total, 'new_orders': new, 'delivered_orders': delivered, 'total_sales': total_sales})
-
-@app.route('/api/order', methods=['POST'])
-def create_order():
-    global order_counter
-    data = request.json
-    order = {
-        'order_id': f'ORD-{datetime.now().strftime("%Y%m%d")}-{str(order_counter).zfill(3)}',
-        'customer': data.get('name', ''),
-        'phone': data.get('phone', ''),
-        'address': data.get('address', ''),
-        'items': data.get('items', []),
-        'total': float(data.get('total', 0)),
-        'status': 'NEW',
-        'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    }
-    orders.append(order)
-    order_counter += 1
-    return jsonify({'success': True, 'order': order})
-
-@app.route('/api/order/status', methods=['PUT'])
-def update_status():
-    data = request.json
-    for order in orders:
-        if order['order_id'] == data.get('order_id'):
-            order['status'] = data.get('status')
-            return jsonify({'success': True, 'order': order})
-    return jsonify({'success': False}), 404
-
-# ===== অ্যাডমিন প্যানেল (HTML) =====
 @app.route('/admin')
-def admin_dashboard():
-    # আপনার আগের পূর্ণাঙ্গ HTML এখানে রাখুন
+def admin():
     return '''
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🌿 Pro Stock & Item Manager</title>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+        <title>🌿 Admin Panel</title>
         <style>
-            /* আপনার CSS */
+            body { font-family: Arial; background: #f0f4f8; padding: 20px; max-width: 800px; margin: auto; }
+            .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+            input { padding: 8px 12px; margin: 4px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; }
+            button { padding: 8px 20px; background: #2E7D32; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+            button:hover { background: #1B5E20; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: left; }
+            .btn-danger { background: #e74c3c; }
+            .btn-danger:hover { background: #c0392b; }
+            .btn-edit { background: #2196F3; }
+            .btn-edit:hover { background: #0b7dda; }
+            .btn-sm { padding: 4px 10px; font-size: 12px; margin: 2px; }
+            .status { color: #2E7D32; font-weight: 600; }
         </style>
     </head>
     <body>
-        <!-- আপনার HTML -->
+        <h1>🌿 Admin Panel</h1>
+        <div class="card">
+            <h3>➕ Add Product</h3>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <input id="name" placeholder="Product Name" style="flex:2; min-width:150px;">
+                <input id="price" placeholder="Price" type="number" style="flex:1; min-width:100px;">
+                <input id="stock" placeholder="Stock" type="number" style="flex:1; min-width:100px;">
+                <button onclick="addProduct()" style="flex:1; min-width:80px;">Add</button>
+            </div>
+        </div>
+        <div class="card">
+            <h3>📦 Products <span class="status" id="count"></span></h3>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead><tr><th>Name</th><th>Price</th><th>Stock</th><th>Actions</th></tr></thead>
+                    <tbody id="productList"></tbody>
+                </table>
+            </div>
+        </div>
         <script>
-            const API_BASE = window.location.origin;
-            // আপনার JavaScript
+            const API = window.location.origin;
+
+            function loadProducts() {
+                fetch(API + '/api/products')
+                    .then(r => r.json())
+                    .then(data => {
+                        const list = document.getElementById('productList');
+                        if (data.length === 0) {
+                            list.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;">No products yet</td></tr>';
+                            document.getElementById('count').textContent = '(0)';
+                            return;
+                        }
+                        document.getElementById('count').textContent = `(${data.length})`;
+                        list.innerHTML = data.map(p => `
+                            <tr>
+                                <td><strong>${p.name}</strong></td>
+                                <td>₹${parseFloat(p.price).toFixed(2)}</td>
+                                <td>${p.stock}</td>
+                                <td>
+                                    <button class="btn-edit btn-sm" onclick="editProduct(${p.id})">✏️ Edit</button>
+                                    <button class="btn-danger btn-sm" onclick="deleteProduct(${p.id})">🗑️ Delete</button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    })
+                    .catch(err => {
+                        document.getElementById('productList').innerHTML = '<tr><td colspan="4" style="color:red;">Error loading products</td></tr>';
+                    });
+            }
+
+            function addProduct() {
+                const name = document.getElementById('name').value.trim();
+                const price = parseFloat(document.getElementById('price').value) || 0;
+                const stock = parseInt(document.getElementById('stock').value) || 0;
+                if (!name) { alert('Please enter product name'); return; }
+                fetch(API + '/api/products', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, price, stock})
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        loadProducts();
+                        document.getElementById('name').value = '';
+                        document.getElementById('price').value = '';
+                        document.getElementById('stock').value = '';
+                    } else {
+                        alert('Error: ' + res.error);
+                    }
+                });
+            }
+
+            function deleteProduct(id) {
+                if (!confirm('Delete this product?')) return;
+                fetch(API + '/api/products/' + id, {method: 'DELETE'})
+                    .then(() => loadProducts());
+            }
+
+            function editProduct(id) {
+                const newName = prompt('Enter new name:');
+                if (newName === null) return;
+                const newPrice = parseFloat(prompt('Enter new price:')) || 0;
+                const newStock = parseInt(prompt('Enter new stock:')) || 0;
+                fetch(API + '/api/products/' + id, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: newName, price: newPrice, stock: newStock})
+                }).then(() => loadProducts());
+            }
+
+            // Auto refresh every 30 seconds
+            loadProducts();
+            setInterval(loadProducts, 30000);
         </script>
     </body>
     </html>
     '''
 
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
